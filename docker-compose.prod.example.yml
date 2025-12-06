@@ -5,13 +5,10 @@ version: '3.8'
 
 services:
   frontend:
-    image: mcr.microsoft.com/dotnet/aspnet:8.0
+    build:
+      context: ./frontend/BurgerPOS
+      dockerfile: Dockerfile
     container_name: burger-frontend
-    working_dir: /app
-    volumes:
-      - ./frontend/BurgerPOS/bin/Release/net8.0/publish:/app
-      - data-protection-keys:/root/.aspnet/DataProtection-Keys
-    command: [ "dotnet", "BurgerPOS.dll" ]
     expose:
       - "5000"
     depends_on:
@@ -19,10 +16,6 @@ services:
     restart: always
     networks:
       - burger-net
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:5000
-      - API_URL=http://burger-backend:8000
 
   backend:
     image: python:3.11-slim
@@ -46,11 +39,9 @@ services:
     container_name: burger-db
     env_file:
       - ./.env.db
-    # NOT exposing port to host in production!
-    # Only accessible via internal network
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: always
     networks:
       - burger-net
@@ -60,10 +51,8 @@ services:
     container_name: burger-nginx
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - frontend
       - backend
@@ -77,4 +66,3 @@ networks:
 
 volumes:
   postgres_data:
-  data-protection-keys:
