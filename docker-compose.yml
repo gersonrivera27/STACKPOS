@@ -5,6 +5,10 @@ services:
     working_dir: /app/BurgerPOS
     volumes:
       - ./frontend:/app
+      # 🔥 CRÍTICO: Excluir obj y bin para evitar deadlocks
+      - /app/BurgerPOS/obj
+      - /app/BurgerPOS/bin
+      - data-protection-keys:/root/.aspnet/DataProtection-Keys
     command: sh -c "dotnet watch run --urls http://0.0.0.0:5000"
     ports:
       - "5001:5000"
@@ -17,6 +21,8 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5000
       - API_URL=http://burger-backend:8000
+      - DOTNET_USE_POLLING_FILE_WATCHER=true
+      - DOTNET_WATCH_RESTART_ON_RUDE_EDIT=true
 
   backend:
     image: python:3.11-slim
@@ -32,16 +38,16 @@ services:
     restart: unless-stopped
     networks:
       - burger-net
+    env_file:
+      - ./backend/.env
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/burger_pos
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-burger_pos}
 
   db:
     image: postgres:15
     container_name: burger-db
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=burger_pos
+    env_file:
+      - ./.env.db
     ports:
       - "5433:5432"
     volumes:
@@ -57,3 +63,6 @@ networks:
 
 volumes:
   postgres_data:
+  data-protection-keys:
+
+

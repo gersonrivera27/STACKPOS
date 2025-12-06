@@ -1,0 +1,484 @@
+@page "/ordenes"
+@rendermode InteractiveServer
+@using BurgerPOS.Models
+@using BurgerPOS.Services
+@inject PosApiService ApiService
+@inject NavigationManager Navigation
+@inject ILogger<OrderHistory> Logger
+@inject IJSRuntime JSRuntime
+
+<div class="order-history-container">
+    <!-- 1. Top Bar: Controls & Filters -->
+    <div class="history-top-bar">
+        <div class="filter-group">
+            <div class="filter-item">
+                <label>BUSCAR ORDEN #</label>
+                <input type="text" placeholder="ID..." @bind="searchId" @bind:event="oninput" />
+            </div>
+            <div class="filter-item">
+                <label>TELÉFONO</label>
+                <input type="text" placeholder="08..." @bind="searchPhone" @bind:event="oninput" />
+            </div>
+            <div class="filter-item">
+                <label>ESTADO</label>
+                <select @bind="filterStatus">
+                    <option value="">TODOS</option>
+                    <option value="pending">PENDIENTE</option>
+                    <option value="preparing">PREPARANDO</option>
+                    <option value="completed">COMPLETADO</option>
+                    <option value="cancelled">CANCELADO</option>
+                </select>
+            </div>
+            <button class="btn-search" @onclick="LoadOrders">
+                🔍 BUSCAR
+            </button>
+        </div>
+
+        <div class="action-group">
+            @if (selectedOrder != null)
+            {
+                <div class="selected-indicator">
+                    @if (selectedOrder.OrderType == "delivery")
+                    {
+                        <span class="type-icon">🚗</span>
+                    }
+                    else if (selectedOrder.OrderType == "takeout")
+                    {
+                        <span class="type-icon">🥡</span>
+                    }
+                    else
+                    {
+                        <span class="type-icon">🍽️</span>
+                    }
+                    <div class="selected-info">
+                        <span class="selected-id">#@selectedOrder.OrderNumber</span>
+                        <span class="selected-status @selectedOrder.Status.ToLower()">@selectedOrder.Status.ToUpper()</span>
+                    </div>
+                </div>
+                
+                <button class="btn-action btn-print" @onclick="PrintTicket">
+                    🖨️ IMPRIMIR
+                </button>
+                
+                @if (selectedOrder.Status != "completed" && selectedOrder.Status != "cancelled")
+                {
+                    <button class="btn-action btn-pay" @onclick="OpenPaymentModal">
+                        💰 PAGAR
+                    </button>
+                }
+            }
+            
+            <button class="btn-action btn-close" @onclick="GoHome">
+                ✕ SALIR
+            </button>
+        </div>
+    </div>
+
+    <div class="history-content">
+        <!-- 2. Left Panel: Receipt View (35%) -->
+        <div class="receipt-panel" id="receipt-area">
+            @if (selectedOrder != null)
+            {
+                <div class="receipt-header">
+                    <h3>STACK POS</h3>
+                    <p>123 Burger Street, Dublin</p>
+                    <p>Tel: 01 234 5678</p>
+                    <div class="receipt-divider">================================</div>
+                    <p>ORDEN: #@selectedOrder.OrderNumber</p>
+                    <p>FECHA: @selectedOrder.CreatedAt.ToString("dd/MM/yyyy HH:mm")</p>
+                    <p>CLIENTE: @selectedOrder.CustomerName</p>
+                    <div class="receipt-divider">================================</div>
+                </div>
+
+                <div class="receipt-items">
+                    <table class="receipt-table">
+                        <thead>
+                            <tr>
+                                <th class="col-qty">QTY</th>
+                                <th class="col-desc">DESC</th>
+                                <th class="col-price">AMT</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (selectedOrder is OrderWithDetails details)
+                            {
+                                @foreach (var item in details.Items)
+                                {
+                                    <tr>
+                                        <td class="col-qty">@item.Quantity</td>
+                                        <td class="col-desc">@item.ProductName</td>
+                                        <td class="col-price">@item.Subtotal.ToString("F2")</td>
+                                    </tr>
+                                    @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+                                    {
+                                        <tr>
+                                            <td></td>
+                                            <td colspan="2" class="receipt-modifier">>> @item.SpecialInstructions</td>
+                                        </tr>
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="3" style="text-align:center; padding: 20px;">
+                                        Cargando detalles...
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="receipt-footer">
+                    <div class="receipt-divider">================================</div>
+                    <div class="receipt-line">
+                        <span>SUBTOTAL:</span>
+                        <span>@selectedOrder.Subtotal.ToString("F2")</span>
+                    </div>
+                    <div class="receipt-line">
+                        <span>TAX (13.5%):</span>
+                        <span>@selectedOrder.Tax.ToString("F2")</span>
+                    </div>
+                    <div class="receipt-line total-line">
+                        <span>TOTAL:</span>
+                        <span>@selectedOrder.Total.ToString("F2")</span>
+                    </div>
+                    <div class="receipt-divider">================================</div>
+                    <p class="receipt-thankyou">*** GRACIAS POR SU COMPRA ***</p>
+                </div>
+            }
+            else
+            {
+                <div class="no-selection">
+                    <p>Seleccione una orden para ver el ticket</p>
+                </div>
+            }
+        </div>
+
+        <!-- 3. Right Panel: Order List (65%) -->
+        <div class="order-list-panel">
+            <table class="grid-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>CLIENTE</th>
+                        <th>TIPO</th>
+                        <th>ESTADO</th>
+                        <th>HORA</th>
+                        <th class="text-right">TOTAL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (isLoading)
+                    {
+                        <tr><td colspan="6" class="text-center">Cargando órdenes...</td></tr>
+                    }
+                    else if (orders.Any())
+                    {
+                        @foreach (var order in orders)
+                        {
+                            <tr class="@(selectedOrder?.Id == order.Id ? "selected" : "")" 
+                                @onclick="() => SelectOrder(order)">
+                                <td>@order.OrderNumber</td>
+                                <td>@order.CustomerName</td>
+                                <td>
+                                    <span class="badge-type @order.OrderType.ToLower()">@order.OrderType.ToUpper()</span>
+                                </td>
+                                <td>
+                                    <span class="badge-status @order.Status.ToLower()">@order.Status.ToUpper()</span>
+                                </td>
+                                <td>@order.CreatedAt.ToString("HH:mm")</td>
+                                <td class="text-right">@order.Total.ToString("F2")</td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr><td colspan="6" class="text-center">No se encontraron órdenes.</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Modal -->
+@if (showPaymentModal && selectedOrder != null)
+{
+    <div class="modal-overlay">
+        <div class="payment-modal">
+            <div class="payment-header">
+                <h2>PAGAR ORDEN #@selectedOrder.OrderNumber</h2>
+                <button class="btn-close-modal" @onclick="ClosePaymentModal">✕</button>
+            </div>
+            
+            <div class="payment-body">
+                <!-- Left: Methods -->
+                <div class="payment-methods">
+                    <button class="btn-method @(paymentMethod == "cash" ? "active" : "")" @onclick="@(() => SetMethod("cash"))">
+                        💵 EFECTIVO
+                    </button>
+                    <button class="btn-method @(paymentMethod == "card" ? "active" : "")" @onclick="@(() => SetMethod("card"))">
+                        💳 TARJETA
+                    </button>
+                    <button class="btn-method @(paymentMethod == "voucher" ? "active" : "")" @onclick="@(() => SetMethod("voucher"))">
+                        🎟️ VOUCHER
+                    </button>
+                </div>
+
+                <!-- Center: Numpad -->
+                <div class="payment-numpad">
+                    <div class="numpad-grid">
+                        <button @onclick="@(() => AddDigit("1"))">1</button>
+                        <button @onclick="@(() => AddDigit("2"))">2</button>
+                        <button @onclick="@(() => AddDigit("3"))">3</button>
+                        <button @onclick="@(() => AddDigit("4"))">4</button>
+                        <button @onclick="@(() => AddDigit("5"))">5</button>
+                        <button @onclick="@(() => AddDigit("6"))">6</button>
+                        <button @onclick="@(() => AddDigit("7"))">7</button>
+                        <button @onclick="@(() => AddDigit("8"))">8</button>
+                        <button @onclick="@(() => AddDigit("9"))">9</button>
+                        <button @onclick="@(() => AddDigit("."))">.</button>
+                        <button @onclick="@(() => AddDigit("0"))">0</button>
+                        <button @onclick="Backspace">⌫</button>
+                    </div>
+                </div>
+
+                <!-- Right: Summary -->
+                <div class="payment-summary">
+                    <div class="summary-row total">
+                        <label>TOTAL A PAGAR</label>
+                        <div class="amount">@selectedOrder.Total.ToString("F2")</div>
+                    </div>
+                    
+                    <div class="summary-row received">
+                        <label>RECIBIDO</label>
+                        <input type="text" value="@amountReceivedStr" readonly />
+                    </div>
+                    
+                    <div class="summary-row change">
+                        <label>CAMBIO</label>
+                        <div class="amount @(changeAmount < 0 ? "negative" : "positive")">
+                            @changeAmount.ToString("F2")
+                        </div>
+                    </div>
+
+                    <div class="quick-cash">
+                        <button @onclick="@(() => SetAmount(5))">£5</button>
+                        <button @onclick="@(() => SetAmount(10))">£10</button>
+                        <button @onclick="@(() => SetAmount(20))">£20</button>
+                        <button @onclick="@(() => SetAmount(50))">£50</button>
+                        <button @onclick="@(() => SetExactAmount())">EXACTO</button>
+                    </div>
+
+                    <button class="btn-process-payment" @onclick="ProcessPayment" disabled="@(changeAmount < 0)">
+                        CONFIRMAR PAGO
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Order> orders = new();
+    private Order? selectedOrder;
+    private bool isLoading = false;
+
+    // Filters
+    private string searchId = "";
+    private string searchPhone = "";
+    private string filterStatus = "";
+
+    // Payment Modal
+    private bool showPaymentModal = false;
+    private string paymentMethod = "cash";
+    private string amountReceivedStr = "0";
+    private decimal amountReceived = 0;
+    private decimal changeAmount = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrders();
+    }
+
+    private async Task LoadOrders()
+    {
+        isLoading = true;
+        try
+        {
+            orders = await ApiService.GetOrdersAsync(status: string.IsNullOrEmpty(filterStatus) ? null : filterStatus);
+            
+            if (!string.IsNullOrEmpty(searchId))
+            {
+                orders = orders.Where(o => o.OrderNumber.Contains(searchId, StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+            
+            // Re-select order if it was updated
+            if (selectedOrder != null)
+            {
+                var updated = orders.FirstOrDefault(o => o.Id == selectedOrder.Id);
+                if (updated != null)
+                {
+                    // Keep details if we had them
+                    if (selectedOrder is OrderWithDetails && !(updated is OrderWithDetails))
+                    {
+                         // We need to re-fetch details if we want to keep them, 
+                         // but for now let's just update the base info
+                         // Or better, just keep selectedOrder as is until user clicks another
+                    }
+                    else 
+                    {
+                        selectedOrder = updated;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading orders");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SelectOrder(Order order)
+    {
+        selectedOrder = order;
+        try 
+        {
+            var details = await ApiService.GetOrderAsync(order.Id);
+            if (details != null)
+            {
+                selectedOrder = details;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading order details");
+        }
+    }
+
+    private void PrintTicket()
+    {
+        if (selectedOrder != null)
+        {
+            Navigation.NavigateTo($"/print-preview/{selectedOrder.Id}");
+        }
+    }
+
+    // Payment Logic
+    private void OpenPaymentModal()
+    {
+        if (selectedOrder == null) return;
+        
+        showPaymentModal = true;
+        paymentMethod = "cash";
+        amountReceivedStr = "0";
+        amountReceived = 0;
+        CalculateChange();
+    }
+
+    private void ClosePaymentModal()
+    {
+        showPaymentModal = false;
+    }
+
+    private void SetMethod(string method)
+    {
+        paymentMethod = method;
+    }
+
+    private void AddDigit(string digit)
+    {
+        if (amountReceivedStr == "0" && digit != ".")
+        {
+            amountReceivedStr = digit;
+        }
+        else
+        {
+            if (digit == "." && amountReceivedStr.Contains(".")) return;
+            amountReceivedStr += digit;
+        }
+        
+        if (decimal.TryParse(amountReceivedStr, out decimal result))
+        {
+            amountReceived = result;
+        }
+        CalculateChange();
+    }
+
+    private void Backspace()
+    {
+        if (amountReceivedStr.Length > 1)
+        {
+            amountReceivedStr = amountReceivedStr.Substring(0, amountReceivedStr.Length - 1);
+        }
+        else
+        {
+            amountReceivedStr = "0";
+        }
+        
+        if (decimal.TryParse(amountReceivedStr, out decimal result))
+        {
+            amountReceived = result;
+        }
+        CalculateChange();
+    }
+
+    private void SetAmount(decimal amount)
+    {
+        amountReceived = amount;
+        amountReceivedStr = amount.ToString();
+        CalculateChange();
+    }
+
+    private void SetExactAmount()
+    {
+        if (selectedOrder != null)
+        {
+            SetAmount(selectedOrder.Total);
+        }
+    }
+
+    private void CalculateChange()
+    {
+        if (selectedOrder != null)
+        {
+            changeAmount = amountReceived - selectedOrder.Total;
+        }
+    }
+
+    private async Task ProcessPayment()
+    {
+        if (selectedOrder == null) return;
+        
+        try 
+        {
+            // Update status to completed
+            var updatedOrder = await ApiService.UpdateOrderStatusAsync(selectedOrder.Id, "completed");
+            
+            if (updatedOrder != null)
+            {
+                Logger.LogInformation("Orden {Id} pagada y completada", selectedOrder.Id);
+                ClosePaymentModal();
+                await LoadOrders(); // Refresh list
+                
+                // Optional: Auto-print after payment
+                // await PrintTicket(); 
+            }
+        }
+        catch(Exception ex)
+        {
+             Logger.LogError(ex, "Error processing payment");
+        }
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

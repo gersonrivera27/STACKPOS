@@ -1,0 +1,28 @@
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            await JS.InvokeVoidAsync("console.log", "🚫 RedirectToLogin: El usuario ESTÁ autenticado. Redirigiendo a Inicio (Posible condición de carrera o 403).");
+            Navigation.NavigateTo("/");
+        }
+        else
+        {
+            var currentPath = new Uri(Navigation.Uri).AbsolutePath;
+            if (currentPath != "/login")
+            {
+                await JS.InvokeVoidAsync("console.log", $"🚫 RedirectToLogin: Usuario NO autenticado. Redirigiendo a /login (Path actual: {currentPath})");
+                Navigation.NavigateTo($"/login?ReturnUrl={Uri.EscapeDataString(Navigation.Uri)}");
+            }
+        }
+    }
+}

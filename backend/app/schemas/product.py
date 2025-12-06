@@ -1,36 +1,36 @@
-"""
-Modelos Pydantic para Productos
-"""
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import Optional
+from decimal import Decimal
 from datetime import datetime
 
+
 class ProductBase(BaseModel):
-    """Base para producto"""
-    category_id: int
     name: str
+    category_id: int
+    price: Decimal
     description: Optional[str] = None
-    price: float = Field(..., gt=0)
     image_url: Optional[str] = None
     is_available: bool = True
+    sort_order: int = 0
 
 class ProductCreate(ProductBase):
-    """Modelo para crear producto"""
     pass
 
 class ProductUpdate(BaseModel):
-    """Modelo para actualizar producto"""
-    category_id: Optional[int] = None
     name: Optional[str] = None
+    category_id: Optional[int] = None
+    price: Optional[Decimal] = None
     description: Optional[str] = None
-    price: Optional[float] = None
     image_url: Optional[str] = None
     is_available: Optional[bool] = None
+    sort_order: Optional[int] = None
 
 class Product(ProductBase):
-    """Modelo completo de producto"""
     id: int
     created_at: datetime
-
+    
     class Config:
         from_attributes = True
+
+class ProductWithCategory(Product):
+    category_name: str

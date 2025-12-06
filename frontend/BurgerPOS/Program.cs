@@ -1,5 +1,7 @@
 using BurgerPOS.Components;
 using BurgerPOS.Services;
+using Microsoft.AspNetCore.Components.Authorization;
+using Blazored.LocalStorage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,15 +9,60 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-// Configurar HttpClient para API
-var apiUrl = Environment.GetEnvironmentVariable("API_URL") ?? "http://burger-backend:8000";
+// ============================================
+// BLAZORED LOCALSTORAGE
+// ============================================
+builder.Services.AddBlazoredLocalStorage();
+
+// ============================================
+// CONFIGURAR API URL
+// ============================================
+var apiUrl = builder.Configuration["ApiUrl"] 
+             ?? Environment.GetEnvironmentVariable("API_URL") 
+             ?? (builder.Environment.IsDevelopment() ? "http://localhost:8000" : "http://burger-backend:8000");
+
 Console.WriteLine($"🔗 Configurando API URL: {apiUrl}");
 
+// ============================================
+// HTTP CLIENTS
+// ============================================
+
+// Registrar JwtAuthorizationMessageHandler
+builder.Services.AddScoped<JwtAuthorizationMessageHandler>();
+
+// HttpClient para PosApiService (con autenticación automática)
 builder.Services.AddHttpClient<PosApiService>(client =>
 {
     client.BaseAddress = new Uri(apiUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
+})
+.AddHttpMessageHandler<JwtAuthorizationMessageHandler>();
+
+// HttpClient para AuthenticationService (sin handler, ya que el login no necesita token)
+builder.Services.AddHttpClient<AuthenticationService>(client =>
+{
+    client.BaseAddress = new Uri(apiUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
 });
+
+// ============================================
+// AUTENTICACIÓN
+// ============================================
+builder.Services.AddScoped<AuthStateProvider>();
+builder.Services.AddScoped<AuthenticationStateProvider>(provider => 
+    provider.GetRequiredService<AuthStateProvider>());
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultScheme = Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme;
+    })
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/login";
+        options.ExpireTimeSpan = TimeSpan.FromDays(1);
+    });
+builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
@@ -28,6 +75,8 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStaticFiles();
 app.UseAntiforgery();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

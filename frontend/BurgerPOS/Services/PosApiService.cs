@@ -15,7 +15,7 @@ public class PosApiService
     }
 
     // ==================== HEALTH CHECK ====================
-    
+
     public async Task<bool> TestConnectionAsync()
     {
         try
@@ -37,7 +37,7 @@ public class PosApiService
     }
 
     // ==================== CUSTOMERS ====================
-    
+
     public async Task<List<Customer>> GetCustomersAsync(string? search = null, int limit = 100)
     {
         try
@@ -47,7 +47,7 @@ public class PosApiService
             {
                 url += $"&search={Uri.EscapeDataString(search)}";
             }
-            
+
             var customers = await _httpClient.GetFromJsonAsync<List<Customer>>(url);
             return customers ?? new List<Customer>();
         }
@@ -57,28 +57,28 @@ public class PosApiService
             return new List<Customer>();
         }
     }
-    
+
     public async Task<CustomerSearchResponse?> SearchCustomerByPhoneAsync(string phone)
-{
-    try
     {
-        _logger.LogInformation("Buscando cliente por teléfono: {Phone}", phone);
-        
-        var response = await _httpClient.GetAsync($"/api/customers/search-by-phone/{Uri.EscapeDataString(phone)}");
-        
-        if (response.IsSuccessStatusCode)
+        try
         {
-            return await response.Content.ReadFromJsonAsync<CustomerSearchResponse>();
+            _logger.LogInformation("Buscando cliente por teléfono: {Phone}", phone);
+
+            var response = await _httpClient.GetAsync($"/api/customers/search-by-phone/{Uri.EscapeDataString(phone)}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<CustomerSearchResponse>();
+            }
+
+            return null;
         }
-        
-        return null;
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error buscando cliente por teléfono");
+            return null;
+        }
     }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Error buscando cliente por teléfono");
-        return null;
-    }
-}
 
     public async Task<List<Customer>?> SearchCustomersAsync(string query)
     {
@@ -144,8 +144,8 @@ public class PosApiService
             return null;
         }
     }
-    
-    
+
+
 
     // ==================== PRODUCTS ====================
 
@@ -170,7 +170,7 @@ public class PosApiService
     }
 
     // ==================== ORDERS ====================
-    
+
     public async Task<List<Order>> GetOrdersAsync(string? status = null, int limit = 100)
     {
         try
@@ -180,7 +180,7 @@ public class PosApiService
             {
                 url += $"&status={status}";
             }
-            
+
             var orders = await _httpClient.GetFromJsonAsync<List<Order>>(url);
             return orders ?? new List<Order>();
         }
@@ -192,7 +192,7 @@ public class PosApiService
     }
 
     // ==================== CATEGORIES ====================
-    
+
     public async Task<List<Category>> GetCategoriesAsync()
     {
         try
@@ -204,6 +204,81 @@ public class PosApiService
         {
             _logger.LogError(ex, "Error obteniendo categorías");
             return new List<Category>();
+        }
+    }
+    
+     public async Task<Order?> CreateOrderAsync(OrderCreate orderData)
+    {
+        try
+        {
+            _logger.LogInformation("Creando orden para: {CustomerName}", orderData.CustomerName);
+            
+            var response = await _httpClient.PostAsJsonAsync("/api/orders", orderData);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var order = await response.Content.ReadFromJsonAsync<Order>();
+                _logger.LogInformation("Orden creada exitosamente: {OrderNumber}", order?.OrderNumber);
+                return order;
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Error creando orden: {StatusCode} - {Error}", response.StatusCode, errorContent);
+                return null;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Excepción creando orden");
+            return null;
+        }
+    }
+    
+    public async Task<OrderWithDetails?> GetOrderDetailsAsync(int orderId)
+    {
+        try
+        {
+            var order = await _httpClient.GetFromJsonAsync<OrderWithDetails>($"/api/orders/{orderId}");
+            return order;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo detalles de orden");
+            return null;
+        }
+    }
+
+    public async Task<OrderWithDetails?> GetOrderAsync(int orderId)
+    {
+        return await GetOrderDetailsAsync(orderId);
+    }
+
+    public async Task<Order?> UpdateOrderStatusAsync(int orderId, string status)
+    {
+        try
+        {
+            // Assuming the backend endpoint is PATCH /api/orders/{id}/status?new_status={status}
+            // or expecting a JSON body. Let's check the backend router again if needed, 
+            // but based on previous read it was PATCH /{order_id}/status with query param or body?
+            // The backend router signature was:
+            // update_order_status(order_id: int, new_status: OrderStatus, ...)
+            // It usually expects query param if not specified as Body.
+            
+            var response = await _httpClient.PatchAsync($"/api/orders/{orderId}/status?new_status={status}", null);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<Order>();
+            }
+            
+            _logger.LogError("Error actualizando estado de orden: {StatusCode}", response.StatusCode);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Excepción actualizando estado de orden");
+            return null;
         }
     }
 }

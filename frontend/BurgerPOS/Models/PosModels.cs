@@ -160,6 +160,12 @@ public class Order
     
     [JsonPropertyName("customer_name")]
     public string? CustomerName { get; set; }
+
+    [JsonPropertyName("customer_phone")]
+    public string? CustomerPhone { get; set; }
+
+    [JsonPropertyName("customer_address")]
+    public string? CustomerAddress { get; set; }
     
     [JsonPropertyName("order_type")]
     public string OrderType { get; set; } = "dine-in";
@@ -191,4 +197,89 @@ public class HealthResponse
     
     [JsonPropertyName("timestamp")]
     public DateTime Timestamp { get; set; }
+}
+
+// ==================== ORDER CREATION ====================
+
+public class CartItem
+{
+    public int ProductId { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+    public decimal UnitPrice { get; set; }
+    public int Quantity { get; set; }
+    public string? SpecialInstructions { get; set; }
+    
+    public decimal Subtotal => UnitPrice * Quantity;
+}
+
+public class OrderItemCreate
+{
+    [JsonPropertyName("product_id")]
+    public int ProductId { get; set; }
+    
+    [JsonPropertyName("quantity")]
+    public int Quantity { get; set; }
+    
+    [JsonPropertyName("special_instructions")]
+    public string? SpecialInstructions { get; set; }
+}
+
+public class OrderCreate
+{
+    [JsonPropertyName("customer_name")]
+    public string CustomerName { get; set; } = string.Empty;
+    
+    [JsonPropertyName("order_type")]
+    public string OrderType { get; set; } = string.Empty;
+    
+    [JsonPropertyName("items")]
+    public List<OrderItemCreate> Items { get; set; } = new();
+    
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+    
+    [JsonPropertyName("table_id")]
+    public int? TableId { get; set; }
+    
+    [JsonPropertyName("payment_method")]
+    public string? PaymentMethod { get; set; }
+
+    [JsonPropertyName("status")]
+    public string? Status { get; set; }
+}
+
+public class OrderItem
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+    
+    [JsonPropertyName("order_id")]
+    public int OrderId { get; set; }
+    
+    [JsonPropertyName("product_id")]
+    public int ProductId { get; set; }
+    
+    [JsonPropertyName("quantity")]
+    public int Quantity { get; set; }
+    
+    [JsonPropertyName("unit_price")]
+    public decimal UnitPrice { get; set; }
+    
+    [JsonPropertyName("subtotal")]
+    public decimal Subtotal { get; set; }
+    
+    [JsonPropertyName("special_instructions")]
+    public string? SpecialInstructions { get; set; }
+    
+    [JsonPropertyName("created_at")]
+    public DateTime CreatedAt { get; set; }
+    
+    [JsonPropertyName("product_name")]
+    public string? ProductName { get; set; }
+}
+
+public class OrderWithDetails : Order
+{
+    [JsonPropertyName("items")]
+    public List<OrderItem> Items { get; set; } = new();
 }

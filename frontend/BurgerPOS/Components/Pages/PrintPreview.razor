@@ -1,0 +1,167 @@
+@page "/print-preview/{OrderId:int}"
+@rendermode InteractiveServer
+@using BurgerPOS.Models
+@using BurgerPOS.Services
+@inject PosApiService ApiService
+@inject NavigationManager Navigation
+@inject ILogger<PrintPreview> Logger
+@inject IJSRuntime JSRuntime
+
+<div class="print-preview-container">
+    <!-- Left Column: Control Panel -->
+    <div class="control-panel">
+        <div class="panel-header">
+            <h2>Print And Preview</h2>
+            <button class="btn-close" @onclick="GoBack">Close</button>
+        </div>
+
+        <div class="main-actions">
+            <button class="btn-primary-print" @onclick="PrintCustomerCopy">
+                Print Receipt (Customer Copy)
+            </button>
+        </div>
+
+        <div class="station-controls">
+            <!-- Kitchen Station -->
+            <div class="station-block">
+                <div class="station-label">Kitchen</div>
+                <div class="station-buttons">
+                    <button class="btn-station" @onclick="PrintToKitchenFull">Print Full Receipt</button>
+                    <button class="btn-station" @onclick="PrintToKitchenChanges">Re-Print Last Edit</button>
+                </div>
+                <div class="station-buttons">
+                    <button class="btn-station secondary">Preview</button>
+                    <button class="btn-station secondary">Preview</button>
+                </div>
+            </div>
+
+            <!-- Bar Station -->
+            <div class="station-block">
+                <div class="station-label">Bar / Drink</div>
+                <div class="station-buttons">
+                    <button class="btn-station" @onclick="PrintToBarFull">Print Full Receipt</button>
+                    <button class="btn-station" @onclick="PrintToBarChanges">Re-Print Last Edit</button>
+                </div>
+                <div class="station-buttons">
+                    <button class="btn-station secondary">Preview</button>
+                    <button class="btn-station secondary">Preview</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Ticket Preview -->
+    <div class="preview-panel">
+        @if (order != null)
+        {
+            <div class="ticket-paper" id="ticket-preview">
+                <div class="ticket-header">
+                    <h3>***Duplicate copy***</h3>
+                    <h2>StackPos Restaurant</h2>
+                    <p>123 Burger Street, Dublin</p>
+                    <p>Tel: 01 234 5678</p>
+                    <div class="dashed-line">--------------------------------</div>
+                </div>
+
+                <div class="ticket-info">
+                    <p>(N): @order.CustomerName</p>
+                    <p>(T): @(string.IsNullOrEmpty(order.CustomerPhone) ? "N/A" : order.CustomerPhone)</p>
+                    <p>(A): @(string.IsNullOrEmpty(order.CustomerAddress) ? "Pick Up" : order.CustomerAddress)</p>
+                    <p>ORD: #@order.OrderNumber</p>
+                    <p>DATE: @order.CreatedAt.ToString("dd/MM/yyyy HH:mm")</p>
+                    <div class="dashed-line">--------------------------------</div>
+                </div>
+
+                <div class="ticket-items">
+                    @if (order is OrderWithDetails details)
+                    {
+                        @foreach (var item in details.Items)
+                        {
+                            <div class="item-row">
+                                <span class="qty">@item.Quantity x</span>
+                                <span class="desc">@item.ProductName</span>
+                                <span class="price">@item.Subtotal.ToString("F2")</span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+                            {
+                                <div class="item-modifier">
+                                    <span>>> @item.SpecialInstructions</span>
+                                </div>
+                            }
+                        }
+                    }
+                </div>
+
+                <div class="ticket-footer">
+                    <div class="dashed-line">--------------------------------</div>
+                    <div class="total-row">
+                        <span>Subtotal:</span>
+                        <span>@order.Subtotal.ToString("F2")</span>
+                    </div>
+                    <div class="total-row">
+                        <span>Delivery Charge:</span>
+                        <span>0.00</span>
+                    </div>
+                    <div class="total-row final-total">
+                        <span>Total:</span>
+                        <span>@order.Total.ToString("F2")</span>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="loading-message">Loading Order...</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int OrderId { get; set; }
+
+    private Order? order;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            order = await ApiService.GetOrderAsync(OrderId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading order for preview");
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/ordenes");
+    }
+
+    private async Task PrintCustomerCopy()
+    {
+        // Use the existing JS print function
+        await JSRuntime.InvokeVoidAsync("printReceipt", "ticket-preview");
+    }
+
+    private void PrintToKitchenFull()
+    {
+        Logger.LogInformation("Printing Full Kitchen Receipt for Order {Id}", OrderId);
+    }
+
+    private void PrintToKitchenChanges()
+    {
+        Logger.LogInformation("Printing Kitchen Changes for Order {Id}", OrderId);
+    }
+
+    private void PrintToBarFull()
+    {
+        Logger.LogInformation("Printing Full Bar Receipt for Order {Id}", OrderId);
+    }
+
+    private void PrintToBarChanges()
+    {
+        Logger.LogInformation("Printing Bar Changes for Order {Id}", OrderId);
+    }
+}

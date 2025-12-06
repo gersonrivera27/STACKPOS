@@ -1,23 +1,23 @@
 /* Navbar Styles */
 
 .navbar {
-    background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-    color: white;
+    background-color: var(--bg-header);
+    color: var(--text-light);
     padding: 0;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     position: sticky;
     top: 0;
     z-index: 1000;
 }
 
 .navbar-container {
-    max-width: 1400px;
+    max-width: 100%;
     margin: 0 auto;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 24px;
-    height: 64px;
+    padding: 0 20px;
+    height: 60px;
 }
 
 .navbar-brand {
@@ -25,21 +25,36 @@
     align-items: center;
     gap: 12px;
     font-size: 1.5rem;
-    font-weight: 800;
-    color: white;
+    font-weight: 700;
+    color: var(--text-light);
     text-decoration: none;
-    transition: color 0.2s;
+    transition: opacity 0.2s;
 }
 
 .navbar-brand:hover {
-    color: #FF6B35;
+    opacity: 0.9;
+    color: var(--text-light);
+}
+
+/* Logo "Stack" con CSS Puro (Reutilizado) */
+.brand-icon {
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(to bottom,
+            var(--primary-accent) 0%, var(--primary-accent) 20%,
+            transparent 20%, transparent 40%,
+            var(--primary-accent) 40%, var(--primary-accent) 60%,
+            transparent 60%, transparent 80%,
+            var(--primary-accent) 80%, var(--primary-accent) 100%);
+    border-radius: 2px;
+    display: inline-block;
 }
 
 .navbar-toggle {
     display: none;
     background: none;
     border: none;
-    color: white;
+    color: var(--text-light);
     font-size: 1.5rem;
     cursor: pointer;
     padding: 8px;
@@ -57,26 +72,71 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    color: white;
-    padding: 12px 20px;
-    border-radius: 8px;
+    color: var(--text-light);
+    padding: 8px 16px;
+    border-radius: 4px;
     transition: all 0.2s;
     text-decoration: none;
     font-weight: 600;
+    font-size: 0.95rem;
 }
 
 .navbar-item:hover {
     background: rgba(255, 255, 255, 0.1);
-    color: #FF6B35;
+    color: var(--primary-accent);
 }
 
 .navbar-item.active {
-    background: #FF6B35;
+    background-color: var(--primary-accent);
     color: white;
 }
 
 .nav-icon {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+}
+
+.user-greeting {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-right: 15px;
+}
+
+.username {
+    font-weight: 600;
+}
+
+.user-role {
+    background-color: var(--primary-accent);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
+.logout-btn {
+    background-color: transparent;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.logout-btn:hover {
+    background-color: var(--danger);
+    color: white;
 }
 
 /* Responsive */
@@ -87,11 +147,11 @@
 
     .navbar-menu {
         position: absolute;
-        top: 64px;
+        top: 60px;
         left: 0;
         right: 0;
         flex-direction: column;
-        background: #2c3e50;
+        background-color: var(--bg-header);
         padding: 16px;
         gap: 8px;
         display: none;
@@ -105,5 +165,10 @@
     .navbar-item {
         width: 100%;
         justify-content: flex-start;
+    }
+
+    .user-info {
+        display: none;
+        /* Simplification for mobile */
     }
 }

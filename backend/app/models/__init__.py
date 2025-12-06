@@ -1,24 +1,56 @@
 """
 Exportación centralizada de modelos
 """
-from .category import Category, CategoryCreate, CategoryBase
-from .product import Product, ProductCreate, ProductUpdate, ProductBase
+from .customer import Customer, CustomerCreate, CustomerUpdate
+from .category import Category, CategoryCreate, CategoryUpdate
+from ..schemas.product import Product, ProductCreate, ProductUpdate, ProductWithCategory
 from .order import (
-    OrderCreate, OrderUpdate, OrderResponse, OrderItemCreate,
-    OrderItemResponse, OrderItemModifier, UpdateOrderPaymentRequest,
-    CreateOrderRequest, OrderItemDto
+    Order,
+    OrderCreate, 
+    OrderUpdate,
+    OrderItem,
+    OrderItemCreate,
+    OrderWithDetails,
+    OrderStatus,
+    OrderType
 )
-from .modifier import Modifier, ModifierCreate, ModifierBase
-from .table import Table, TableCreate, TableBase
-from .customer import Customer, CustomerCreate, CustomerUpdate, CustomerBase
+from .table import Table, TableCreate, TableUpdate
+from .modifier import Modifier, ModifierCreate, ModifierUpdate
 
 __all__ = [
-    "Category", "CategoryCreate", "CategoryBase",
-    "Product", "ProductCreate", "ProductUpdate", "ProductBase",
-    "OrderCreate", "OrderUpdate", "OrderResponse", "OrderItemCreate",
-    "OrderItemResponse", "OrderItemModifier", "UpdateOrderPaymentRequest",
-    "CreateOrderRequest", "OrderItemDto",
-    "Modifier", "ModifierCreate", "ModifierBase",
-    "Table", "TableCreate", "TableBase",
-    "Customer", "CustomerCreate", "CustomerUpdate", "CustomerBase",
+    # Customers
+    "Customer",
+    "CustomerCreate", 
+    "CustomerUpdate",
+    
+    # Categories
+    "Category",
+    "CategoryCreate",
+    "CategoryUpdate",
+    
+    # Products
+    "Product",
+    "ProductCreate",
+    "ProductUpdate",
+    "ProductWithCategory",
+    
+    # Orders
+    "Order",
+    "OrderCreate",
+    "OrderUpdate",
+    "OrderItem",
+    "OrderItemCreate",
+    "OrderWithDetails",
+    "OrderStatus",
+    "OrderType",
+    
+    # Tables
+    "Table",
+    "TableCreate",
+    "TableUpdate",
+    
+    # Modifiers
+    "Modifier",
+    "ModifierCreate",
+    "ModifierUpdate",
 ]

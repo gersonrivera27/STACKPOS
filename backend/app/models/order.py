@@ -4,76 +4,93 @@ Modelos Pydantic para Órdenes
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
+from decimal import Decimal
+from enum import Enum
 
-class OrderItemModifier(BaseModel):
-    """Modificador de un item"""
-    modifier_id: int
-    quantity: int = 1
+class OrderType(str, Enum):
+    """Tipos de orden"""
+    DELIVERY = "delivery"
+    TAKEOUT = "takeout"
+    DINE_IN = "dine_in"
+
+class OrderStatus(str, Enum):
+    """Estados de orden"""
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    PREPARING = "preparing"
+    READY = "ready"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+class PaymentMethod(str, Enum):
+    """Métodos de pago"""
+    CASH = "cash"
+    CARD = "card"
+    ONLINE = "online"
 
 class OrderItemCreate(BaseModel):
     """Modelo para crear item de orden"""
     product_id: int
-    quantity: int = Field(..., gt=0)
+    quantity: int = Field(gt=0, description="Cantidad debe ser mayor a 0")
     special_instructions: Optional[str] = None
-    modifiers: Optional[List[OrderItemModifier]] = []
 
-class OrderItemResponse(BaseModel):
-    """Respuesta de item de orden"""
-    id: int
+class OrderItemBase(BaseModel):
+    """Base para item de orden"""
     product_id: int
-    product_name: str
     quantity: int
-    unit_price: float
-    subtotal: float
-    special_instructions: Optional[str]
-    modifiers: Optional[List[dict]] = []
+    unit_price: Decimal
+    subtotal: Decimal
+    special_instructions: Optional[str] = None
+
+class OrderItem(OrderItemBase):
+    """Modelo completo de item de orden"""
+    id: int
+    order_id: int
+    created_at: datetime
+    product_name: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
 
 class OrderCreate(BaseModel):
     """Modelo para crear orden"""
     customer_name: Optional[str] = None
-    order_type: str  # 'dine-in', 'takeout', 'delivery'
-    table_id: Optional[int] = None
-    items: List[OrderItemCreate]
-    payment_method: Optional[str] = None
+    order_type: OrderType
+    items: List[OrderItemCreate] = Field(min_length=1, description="Debe tener al menos 1 item")
     notes: Optional[str] = None
+    table_id: Optional[int] = None
+    payment_method: Optional[PaymentMethod] = None
 
 class OrderUpdate(BaseModel):
     """Modelo para actualizar orden"""
-    status: Optional[str] = None
-    payment_method: Optional[str] = None
+    status: Optional[OrderStatus] = None
+    customer_name: Optional[str] = None
+    notes: Optional[str] = None
+    payment_method: Optional[PaymentMethod] = None
 
-class OrderResponse(BaseModel):
-    """Respuesta completa de orden"""
-    id: int
+class OrderBase(BaseModel):
+    """Base para orden"""
     order_number: str
-    customer_name: Optional[str]
+    customer_name: Optional[str] = None
     order_type: str
     status: str
-    subtotal: float
-    tax: float
-    discount: float
-    total: float
-    payment_method: Optional[str]
-    notes: Optional[str]
-    created_at: datetime
-    completed_at: Optional[datetime]
+    subtotal: Decimal
+    tax: Decimal
+    discount: Decimal
+    total: Decimal
+    payment_method: Optional[str] = None
+    notes: Optional[str] = None
+    table_id: Optional[int] = None
 
+class Order(OrderBase):
+    """Modelo completo de orden"""
+    id: int
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    
     class Config:
         from_attributes = True
 
-class UpdateOrderPaymentRequest(BaseModel):
-    """Modelo para actualizar método de pago"""
-    payment_method: str
-
-class OrderItemDto(BaseModel):
-    """DTO para items al crear orden (recall)"""
-    product_id: int
-    quantity: int
-    special_instructions: Optional[str] = None
-
-class CreateOrderRequest(BaseModel):
-    """Modelo para crear orden desde historial (recall)"""
-    customer_name: str = ""
-    order_type: str = "dine-in"
-    notes: Optional[str] = None
-    items: List[OrderItemDto]
+class OrderWithDetails(Order):
+    """Orden con items"""
+    items: List[OrderItem]

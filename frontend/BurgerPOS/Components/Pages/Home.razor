@@ -2,144 +2,150 @@
 @using BurgerPOS.Services
 @using BurgerPOS.Models
 @using BurgerPOS.Components.Shared
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 @inject PosApiService ApiService
 @inject NavigationManager Navigation
 @inject ILogger<Home> Logger
 @rendermode InteractiveServer
 
-<PageTitle>BurgerPOS - Sistema de Punto de Venta</PageTitle>
+<PageTitle>StackPos - Sistema de Punto de Venta</PageTitle>
 
-<link rel="stylesheet" href="css/pages/home.css" />
 
-<div class="pos-container">
-    <!-- Header Info -->
-    <div class="pos-header">
+
+<div class="pos-layout">
+    <!-- 1. Header -->
+    <header class="pos-header">
+        <div class="brand">
+            <div class="brand-icon"></div>
+            <span class="brand-name"><strong>STACK</strong> POS</span>
+        </div>
+        
         <div class="header-info">
-            <div class="info-item">
-                <span class="info-label">Usuario</span>
-                <span class="info-value">Administrador</span>
+            <div class="info-pill">
+                <i class="bi bi-person-circle icon"></i>
+                <span class="text">Admin</span>
             </div>
-            <div class="info-item">
-                <span class="info-label">Sucursal</span>
-                <span class="info-value">Principal</span>
+            <div class="info-pill">
+                <i class="bi bi-shop icon"></i>
+                <span class="text">Principal</span>
             </div>
-            <div class="info-item">
-                <span class="info-label">Caja</span>
-                <span class="info-value">Caja 001</span>
+            <div class="info-pill time-pill">
+                @currentTime
             </div>
         </div>
-        <div class="pos-datetime">
-            <div class="pos-date">@DateTime.Now.ToString("dddd, dd MMMM yyyy")</div>
-            <div class="pos-time">@currentTime</div>
-        </div>
-    </div>
 
-    <!-- Main Content -->
-    <div class="pos-main">
-        <!-- Lines Section -->
-        <div class="lines-section">
-            <div class="lines-grid">
-                @foreach (var line in lines)
-                {
-                    <div class="line-card @(line.IsActive ? "active" : "")">
-                        <div class="line-header">
-                            <span class="line-title">@line.Name</span>
-                            <span class="line-icon">☎️</span>
-                        </div>
-                        <div class="line-actions">
-                            <button class="line-btn delivery" 
-                                    @onclick="@(() => OpenCustomerModal(line.Id, "delivery"))"
-                                    type="button">
-                                🚗 Domicilio
-                            </button>
-                            <button class="line-btn collection" 
-                                    @onclick="@(() => OpenCustomerModal(line.Id, "collection"))"
-                                    type="button">
-                                🥡 Para Llevar
-                            </button>
-                        </div>
+        <button class="btn-logout">
+            <i class="bi bi-power"></i> Salir
+        </button>
+    </header>
+
+    <!-- 2. Main Content -->
+    <main class="pos-main">
+        <!-- Lines Grid -->
+        <div class="lines-grid">
+            @foreach (var line in lines)
+            {
+                <div class="line-card @(line.IsActive ? "active" : "")">
+                    <div class="line-header">
+                        <span class="line-id">Línea @line.Id</span>
+                        <span class="line-status">@(line.IsActive ? "OCUPADO" : "LIBRE")</span>
                     </div>
-                }
-            </div>
+                    
+                    <div class="line-icon-wrapper">
+                        <i class="bi bi-telephone-fill line-icon"></i>
+                    </div>
+
+                    <div class="line-controls">
+                        <button class="control-btn btn-delivery" 
+                                @onclick="@(() => OpenCustomerModal(line.Id, "delivery"))">
+                            <i class="bi bi-car-front-fill"></i>
+                            <span>DOMICILIO</span>
+                        </button>
+                        <button class="control-btn btn-collection" 
+                                @onclick="@(() => OpenCustomerModal(line.Id, "collection"))">
+                            <i class="bi bi-bag-fill"></i>
+                            <span>PARA LLEVAR</span>
+                        </button>
+                    </div>
+                </div>
+            }
         </div>
 
         <!-- Sidebar -->
-        <div class="pos-sidebar">
-            <!-- Take Away Button -->
-            <button class="take-away-btn" 
-                    @onclick="@(() => OpenCustomerModal(0, "takeout"))"
-                    type="button">
-                <span class="take-away-icon">🍔</span>
-                Take Away
+        <aside class="pos-sidebar">
+            <button class="btn-takeaway" @onclick="@(() => OpenCustomerModal(0, "takeout"))">
+                <i class="bi bi-person-walking takeaway-icon"></i>
+                <span class="takeaway-text">TAKE AWAY</span>
+                <span class="takeaway-sub">Venta Rápida</span>
             </button>
 
-            <!-- Status Indicators -->
-            <div class="status-indicators">
-                <div class="status-item">
-                    <span class="status-label">Punto de Venta</span>
-                    <span class="status-indicator active"></span>
+            <div class="system-status">
+                <div class="status-row">
+                    <span class="status-label">SERVER</span>
+                    <span class="status-led @(backendConnected ? "led-green" : "led-red")"></span>
                 </div>
-                <div class="status-item">
-                    <span class="status-label">Backend</span>
-                    <span class="status-indicator @(backendConnected ? "active" : "inactive")"></span>
+                <div class="status-row">
+                    <span class="status-label">PRINTER</span>
+                    <span class="status-led led-green"></span>
                 </div>
-                <div class="status-item">
-                    <span class="status-label">Impresora</span>
-                    <span class="status-indicator active"></span>
+                <div class="status-row">
+                    <span class="status-label">DB SYNC</span>
+                    <span class="status-led led-green"></span>
                 </div>
             </div>
-        </div>
-    </div>
+        </aside>
+    </main>
 
-    <!-- Quick Actions -->
-    <div class="quick-actions">
-        <h3 class="actions-title">Acciones Rápidas</h3>
-        <div class="actions-grid">
-            <button class="action-btn" @onclick="@(() => Navigation.NavigateTo("/productos"))" type="button">
-                <span class="action-icon">🍔</span>
-                <span class="action-label">Productos</span>
+    <!-- 3. Footer -->
+    <footer class="pos-footer">
+        <div class="actions-bar">
+            <button class="action-key" @onclick="@(() => Navigation.NavigateTo("/productos"))">
+                <span class="key-hint">F1</span>
+                <span class="key-label">PRODUCTOS</span>
             </button>
             
-            <button class="action-btn" @onclick="@(() => Navigation.NavigateTo("/ordenes"))" type="button">
-                <span class="action-icon">📋</span>
-                <span class="action-label">Órdenes</span>
+            <button class="action-key" @onclick="@(() => Navigation.NavigateTo("/ordenes"))">
+                <span class="key-hint">F2</span>
+                <span class="key-label">ÓRDENES</span>
             </button>
             
-            <button class="action-btn" @onclick="@(() => Navigation.NavigateTo("/historial"))" type="button">
-                <span class="action-icon">📊</span>
-                <span class="action-label">Historial</span>
+            <button class="action-key" @onclick="@(() => Navigation.NavigateTo("/historial"))">
+                <span class="key-hint">F3</span>
+                <span class="key-label">HISTORIAL</span>
             </button>
             
-            <button class="action-btn" @onclick="@(() => Navigation.NavigateTo("/mesas"))" type="button">
-                <span class="action-icon">🪑</span>
-                <span class="action-label">Mesas</span>
+            <button class="action-key" @onclick="@(() => Navigation.NavigateTo("/mesas"))">
+                <span class="key-hint">F4</span>
+                <span class="key-label">MESAS</span>
             </button>
             
-            <button class="action-btn" type="button">
-                <span class="action-icon">💳</span>
-                <span class="action-label">Caja</span>
+            <button class="action-key">
+                <span class="key-hint">F5</span>
+                <span class="key-label">CAJA</span>
             </button>
             
-            <button class="action-btn" @onclick="@(() => Navigation.NavigateTo("/clientes"))" type="button">
-                <span class="action-icon">👥</span>
-                <span class="action-label">Clientes</span>
+            <button class="action-key" @onclick="@(() => Navigation.NavigateTo("/clientes"))">
+                <span class="key-hint">F6</span>
+                <span class="key-label">CLIENTES</span>
             </button>
             
-            <button class="action-btn" type="button">
-                <span class="action-icon">📈</span>
-                <span class="action-label">Reportes</span>
+            <button class="action-key">
+                <span class="key-hint">F7</span>
+                <span class="key-label">REPORTES</span>
             </button>
             
-            <button class="action-btn" type="button">
-                <span class="action-icon">⚙️</span>
-                <span class="action-label">Config</span>
+            <button class="action-key">
+                <span class="key-hint">F8</span>
+                <span class="key-label">CONFIG</span>
             </button>
         </div>
-    </div>
+    </footer>
 </div>
 
 <!-- Customer Search Modal -->
 <CustomerSearchModal IsOpen="@showCustomerModal"
+                     PhoneLine="@selectedLineId"
                      OnContinue="HandleCustomerSelected"
                      OnCancel="CloseCustomerModal" />
 

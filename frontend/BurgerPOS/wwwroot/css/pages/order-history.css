@@ -1,0 +1,611 @@
+/* Order History - Retro Industrial Theme */
+
+.order-history-container {
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    background-color: #1a1a1a;
+    font-family: 'Segoe UI', sans-serif;
+    overflow: hidden;
+}
+
+/* 1. Top Bar */
+.history-top-bar {
+    height: 100px;
+    background-color: #2c3e50;
+    border-bottom: 2px solid #000;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    color: white;
+}
+
+.filter-group {
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+}
+
+.filter-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.filter-item label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #bdc3c7;
+    text-transform: uppercase;
+}
+
+.filter-item input,
+.filter-item select {
+    height: 40px;
+    padding: 5px 10px;
+    border: 1px solid #000;
+    background-color: white;
+    font-weight: 600;
+    font-size: 1rem;
+    border-radius: 0;
+    /* Square */
+    min-width: 150px;
+}
+
+.btn-search {
+    height: 40px;
+    padding: 0 20px;
+    background-color: #3498db;
+    color: white;
+    border: 1px solid #000;
+    font-weight: 700;
+    cursor: pointer;
+    text-transform: uppercase;
+}
+
+.action-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.selected-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: rgba(0, 0, 0, 0.3);
+    padding: 5px 15px;
+    margin-right: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.type-icon {
+    font-size: 2rem;
+}
+
+.selected-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.selected-id {
+    font-weight: 800;
+    font-size: 1.2rem;
+    color: #f1c40f;
+}
+
+.selected-status {
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.selected-status.pending {
+    color: #f39c12;
+}
+
+.selected-status.preparing {
+    color: #3498db;
+}
+
+.selected-status.completed {
+    color: #27ae60;
+}
+
+.selected-status.cancelled {
+    color: #e74c3c;
+}
+
+.btn-action {
+    height: 60px;
+    padding: 0 20px;
+    border: none;
+    font-weight: 800;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    min-width: 100px;
+    border: 2px solid rgba(0, 0, 0, 0.2);
+}
+
+.btn-print {
+    background-color: #95a5a6;
+    color: white;
+}
+
+.btn-pay {
+    background-color: #27ae60;
+    color: white;
+}
+
+.btn-close {
+    background-color: #c0392b;
+    color: white;
+}
+
+.btn-action:hover {
+    filter: brightness(1.1);
+}
+
+/* 2. Main Content Grid */
+.history-content {
+    display: grid;
+    grid-template-columns: 35% 65%;
+    /* Left Receipt - Right List */
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Left Panel: Receipt */
+.receipt-panel {
+    background-color: #fff9c4;
+    /* Amarillo papel suave - CRITICAL */
+    border-right: 2px solid #000;
+    font-family: 'Consolas', 'Courier New', monospace;
+    /* Vital */
+    color: #000;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    overflow-y: auto;
+    box-shadow: inset -5px 0 10px rgba(0, 0, 0, 0.05);
+}
+
+.receipt-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.receipt-header h3 {
+    font-size: 1.5rem;
+    font-weight: 900;
+    margin-bottom: 5px;
+}
+
+.receipt-header p {
+    margin: 2px 0;
+    font-size: 0.9rem;
+}
+
+.receipt-divider {
+    margin: 10px 0;
+    font-weight: bold;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.receipt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+
+.receipt-table th {
+    text-align: left;
+    border-bottom: 1px dashed #000;
+    padding-bottom: 5px;
+}
+
+.col-qty {
+    width: 40px;
+    text-align: center;
+}
+
+.col-desc {
+    text-align: left;
+}
+
+.col-price {
+    text-align: right;
+    width: 70px;
+}
+
+.receipt-table td {
+    padding: 5px 0;
+    vertical-align: top;
+}
+
+.receipt-modifier {
+    font-size: 0.85rem;
+    font-style: italic;
+    color: #444;
+    padding-left: 10px;
+}
+
+.receipt-footer {
+    margin-top: auto;
+    padding-top: 20px;
+}
+
+.receipt-line {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.total-line {
+    font-size: 1.5rem;
+    font-weight: 900;
+    margin-top: 10px;
+    padding-top: 5px;
+    border-top: 2px dashed #000;
+}
+
+.receipt-thankyou {
+    text-align: center;
+    margin-top: 20px;
+    font-weight: bold;
+}
+
+.no-selection {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #999;
+    font-style: italic;
+    border: 2px dashed #ccc;
+}
+
+/* Right Panel: Order List */
+.order-list-panel {
+    background-color: #ecf0f1;
+    overflow-y: auto;
+    padding: 0;
+}
+
+.grid-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.grid-table thead {
+    background-color: #bdc3c7;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.grid-table th {
+    padding: 12px;
+    text-align: left;
+    font-weight: 700;
+    border-bottom: 2px solid #7f8c8d;
+    border-right: 1px solid #95a5a6;
+    color: #2c3e50;
+}
+
+.grid-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #bdc3c7;
+    border-right: 1px solid #bdc3c7;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.grid-table tr:hover {
+    background-color: #dcdde1;
+}
+
+/* Selection Style - Electric Blue */
+.grid-table tr.selected {
+    background-color: #0066cc !important;
+    color: white !important;
+}
+
+.grid-table tr.selected td {
+    border-color: #005bb5;
+}
+
+.text-right {
+    text-align: right;
+}
+
+.text-center {
+    text-align: center;
+}
+
+/* Badges in Grid */
+.badge-type {
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background-color: #fff;
+    border: 1px solid #ccc;
+}
+
+.badge-status {
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.badge-status.pending {
+    background-color: #f39c12;
+    color: white;
+}
+
+.badge-status.preparing {
+    background-color: #3498db;
+    color: white;
+}
+
+.badge-status.completed {
+    background-color: #27ae60;
+    color: white;
+}
+
+.badge-status.cancelled {
+    background-color: #e74c3c;
+    color: white;
+}
+
+/* ==================== PAYMENT MODAL ==================== */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    backdrop-filter: blur(4px);
+}
+
+.payment-modal {
+    background-color: #ecf0f1;
+    width: 900px;
+    height: 600px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.payment-header {
+    background-color: #2c3e50;
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.payment-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+.btn-close-modal {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 2rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.payment-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 200px 1fr 300px;
+    /* Methods - Numpad - Summary */
+    gap: 2px;
+    background-color: #bdc3c7;
+    padding: 2px;
+}
+
+/* 1. Methods Column */
+.payment-methods {
+    background-color: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+}
+
+.btn-method {
+    padding: 20px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    border: 2px solid #bdc3c7;
+    background-color: #f8f9fa;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+}
+
+.btn-method.active {
+    border-color: #3498db;
+    background-color: #ebf5fb;
+    color: #2980b9;
+}
+
+/* 2. Numpad Column */
+.payment-numpad {
+    background-color: #fff;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.numpad-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    width: 100%;
+    max-width: 350px;
+}
+
+.numpad-grid button {
+    height: 80px;
+    font-size: 2rem;
+    font-weight: 700;
+    background-color: #ecf0f1;
+    border: 1px solid #bdc3c7;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.numpad-grid button:active {
+    background-color: #dcdde1;
+}
+
+/* 3. Summary Column */
+.payment-summary {
+    background-color: #fff;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.summary-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.summary-row label {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #7f8c8d;
+    text-transform: uppercase;
+}
+
+.summary-row .amount {
+    font-size: 2rem;
+    font-weight: 800;
+    text-align: right;
+}
+
+.summary-row.total .amount {
+    color: #c0392b;
+}
+
+.summary-row.change .amount {
+    color: #27ae60;
+}
+
+.summary-row.change .amount.negative {
+    color: #e74c3c;
+}
+
+.summary-row input {
+    font-size: 2rem;
+    font-weight: 800;
+    text-align: right;
+    padding: 10px;
+    border: 2px solid #3498db;
+    border-radius: 4px;
+}
+
+.quick-cash {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.quick-cash button {
+    padding: 10px;
+    font-weight: 700;
+    background-color: #f1c40f;
+    border: none;
+    cursor: pointer;
+    font-size: 1.1rem;
+}
+
+.btn-process-payment {
+    margin-top: auto;
+    padding: 20px;
+    background-color: #27ae60;
+    color: white;
+    border: none;
+    font-size: 1.3rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.btn-process-payment:disabled {
+    background-color: #95a5a6;
+    cursor: not-allowed;
+}
+
+/* ==================== PRINT STYLES ==================== */
+@media print {
+
+    /* Hide everything by default */
+    body * {
+        visibility: hidden;
+    }
+
+    /* Only show the receipt area */
+    #receipt-area,
+    #receipt-area * {
+        visibility: visible;
+    }
+
+    /* Position the receipt area at the top left */
+    #receipt-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: white !important;
+        /* Save ink, white background */
+        color: black !important;
+        border: none;
+        box-shadow: none;
+    }
+
+    /* Ensure text is black for thermal printers */
+    .receipt-header h3,
+    .receipt-header p,
+    .receipt-table,
+    .receipt-footer {
+        color: black !important;
+    }
+
+    /* Hide scrollbars and other UI elements */
+    .no-selection {
+        display: none;
+    }
+}

@@ -1,9 +1,14 @@
 @inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
 
 <link rel="stylesheet" href="css/components/navbar.css" />
 
 <div class="page-wrapper">
-    <NavMenu />
+    <AuthorizeView>
+        <Authorized>
+            <NavMenu />
+        </Authorized>
+    </AuthorizeView>
     
     <main class="page-content">
         @Body
@@ -19,5 +24,9 @@
 
     .page-content {
         flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        position: relative; /* Ensure absolute positioning works inside if needed */
     }
 </style>

@@ -6,13 +6,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 
 from .config import settings
-from .routers import categories, products, orders, modifiers, tables, reports, customers
+from .routers import categories, products, orders, modifiers, tables, reports, customers, auth
 
-# Crear aplicación
+# Crear aplicación - Disable docs in production
 app = FastAPI(
     title=settings.API_TITLE,
     version=settings.API_VERSION,
-    description=settings.API_DESCRIPTION
+    description=settings.API_DESCRIPTION,
+    docs_url=None if settings.ENV == "production" else "/docs",
+    redoc_url=None if settings.ENV == "production" else "/redoc",
+    openapi_url=None if settings.ENV == "production" else "/openapi.json"
 )
 
 # Configurar CORS
@@ -25,6 +28,7 @@ app.add_middleware(
 )
 
 # Registrar routers
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(categories.router, prefix="/api/categories", tags=["Categories"])
 app.include_router(products.router, prefix="/api/products", tags=["Products"])
 app.include_router(orders.router, prefix="/api/orders", tags=["Orders"])

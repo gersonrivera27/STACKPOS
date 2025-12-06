@@ -1,0 +1,543 @@
+@page "/order/{CustomerId:int}/{OrderTypeStr}/{PhoneLine:int}"
+@rendermode InteractiveServer
+@using BurgerPOS.Models
+@using BurgerPOS.Services
+@inject PosApiService ApiService
+@inject NavigationManager Navigation
+@inject ILogger<OrderCreation> Logger
+
+<div class="order-creation-container">
+    <!-- Header -->
+    <!-- Header -->
+    <div class="order-header">
+        <div class="brand">
+            <div class="brand-icon"></div>
+            <span class="brand-name"><strong>STACK</strong> POS</span>
+        </div>
+        
+        <div class="order-info-center">
+            <span class="order-title">LÍNEA @PhoneLine - @GetOrderTypeLabel().ToUpper()</span>
+            @if (customer != null)
+            {
+                <span class="customer-name"> | 👤 @customer.Name</span>
+            }
+        </div>
+
+        <button class="btn-close-order" @onclick="CancelOrder">
+            ✕ SALIR
+        </button>
+    </div>
+
+    <div class="order-content">
+        <!-- Left: Categories & Products (65%) -->
+        <div class="products-section">
+            <!-- Category Tabs -->
+            <div class="category-tabs">
+                @foreach (var category in categories)
+                {
+                    <button class="category-tab @(selectedCategoryId == category.Id ? "active" : "")"
+                            @onclick="() => SelectCategory(category.Id)">
+                        @category.Name
+                    </button>
+                }
+            </div>
+
+            <!-- Products Grid -->
+            <div class="products-grid">
+                @if (isLoadingProducts)
+                {
+                    <p style="color: white; padding: 20px;">Cargando...</p>
+                }
+                else if (filteredProducts.Any())
+                {
+                    @foreach (var product in filteredProducts)
+                    {
+                        <button class="product-button" @onclick="() => AddToCart(product)">
+                            <div class="product-name">@product.Name</div>
+                            <div class="product-price">@product.Price.ToString("F2")</div>
+                        </button>
+                    }
+                }
+            </div>
+        </div>
+
+        <!-- Right: Ticket (35%) -->
+        <div class="order-display-section">
+            <div class="order-header-info">
+                <span>TICKET #@ticketNumber</span>
+                <span>@DateTime.Now.ToString("HH:mm")</span>
+            </div>
+
+            <!-- Order Table -->
+            <div class="order-table-container">
+                <table class="order-table">
+                    <thead>
+                        <tr>
+                            <th class="col-qty">#</th>
+                            <th class="col-product">DESC</th>
+                            <th class="col-cost">IMP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in cart)
+                        {
+                            <tr class="order-row @(selectedCartItem?.ProductId == item.ProductId ? "selected" : "")"
+                                @onclick="() => SelectCartItem(item)">
+                                <td class="col-qty">@item.Quantity</td>
+                                <td class="col-product">
+                                    <div class="product-main-name">@item.ProductName</div>
+                                    @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+                                    {
+                                        <div class="product-modifiers">
+                                            @foreach (var instruction in item.SpecialInstructions.Split('\n'))
+                                            {
+                                                <div>> @instruction</div>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+                                <td class="col-cost">@item.Subtotal.ToString("F2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Item Action Buttons -->
+            <div class="item-actions">
+                <button class="action-btn" @onclick="() => { if(selectedCartItem != null) IncreaseQuantity(selectedCartItem); }">
+                    ➕ AGREGAR
+                </button>
+                <button class="action-btn" @onclick="() => { if(selectedCartItem != null) DecreaseQuantity(selectedCartItem); }">
+                    ➖ QUITAR
+                </button>
+                <button class="action-btn" @onclick="() => { if(selectedCartItem != null) OpenCommentModal(selectedCartItem); }">
+                    � NOTA
+                </button>
+                <button class="action-btn btn-delete" @onclick="() => { if(selectedCartItem != null) RemoveFromCart(selectedCartItem); }">
+                    🗑 BORRAR
+                </button>
+            </div>
+
+            <!-- Order Summary -->
+            <div class="order-summary-box">
+                <div class="summary-line">
+                    <span>SUBTOTAL:</span>
+                    <span>@CalculateSubtotal().ToString("F2")</span>
+                </div>
+                <div class="summary-line total-line">
+                    <span>TOTAL:</span>
+                    <span>@CalculateTotal().ToString("F2")</span>
+                </div>
+            </div>
+
+            <!-- Final Action Buttons -->
+            <div class="final-actions">
+                <button class="btn-clear" @onclick="ClearCart">CANCELAR</button>
+                <button class="btn-kitchen" @onclick="SendToKitchen" disabled="@isSubmitting">
+                    COCINA
+                </button>
+                <button class="btn-confirm" @onclick="ConfirmOrder" disabled="@isSubmitting">
+                    PAGAR
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Comment Modal -->
+@if (showCommentModal && editingCartItem != null)
+{
+    <div class="modal-overlay" @onclick="CloseCommentModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Modificar: @editingCartItem.ProductName</h3>
+                <button class="modal-close" @onclick="CloseCommentModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-hint">Agrega instrucciones especiales (una por línea):</p>
+                
+                <!-- Quick Modifiers -->
+                <div class="quick-modifiers">
+                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Sin pepinillos")'>Sin pepinillos</button>
+                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Sin queso")'>Sin queso</button>
+                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Sin cebolla")'>Sin cebolla</button>
+                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Sin tomate")'>Sin tomate</button>
+                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Bien cocido")'>Bien cocido</button>
+                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Término medio")'>Término medio</button>
+                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Extra queso")'>Extra queso</button>
+                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Extra bacon")'>Extra bacon</button>
+                </div>
+
+                <textarea class="comment-textarea" 
+                          @bind="tempComment" 
+                          placeholder="Ejemplo:&#10;Sin pepinillos&#10;Extra queso&#10;Bien cocido" 
+                          rows="8"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-modal-cancel" @onclick="CloseCommentModal">Cancelar</button>
+                <button class="btn-modal-save" @onclick="SaveComment">Guardar</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int CustomerId { get; set; }
+    [Parameter] public string OrderTypeStr { get; set; } = "takeout";
+    [Parameter] public int PhoneLine { get; set; }
+
+    private Customer? customer;
+    private List<Category> categories = new();
+    private List<Product> products = new();
+    private List<Product> filteredProducts = new();
+    private List<CartItem> cart = new();
+    private int? selectedCategoryId;
+    private string orderNotes = "";
+    private bool isLoadingProducts = false;
+    private bool isSubmitting = false;
+    private string errorMessage = "";
+    private string successMessage = "";
+
+    // For item selection and modification
+    private CartItem? selectedCartItem;
+    private CartItem? editingCartItem;
+    private bool showCommentModal = false;
+    private string tempComment = "";
+
+    private int ticketNumber;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Generate ticket number once
+            ticketNumber = new Random().Next(1000, 9999);
+
+            Logger.LogInformation("Iniciando OrderCreation para Cliente {CustomerId}", CustomerId);
+
+            // Load customer
+            var customerList = await ApiService.GetCustomersAsync();
+            customer = customerList.FirstOrDefault(c => c.Id == CustomerId);
+
+            if (customer == null)
+            {
+                errorMessage = "Cliente no encontrado";
+                Logger.LogWarning("Cliente {CustomerId} no encontrado", CustomerId);
+                return;
+            }
+
+            // Load categories
+            categories = await ApiService.GetCategoriesAsync();
+            Logger.LogInformation("Cargadas {Count} categorías", categories.Count);
+
+            // Load all products
+            products = await ApiService.GetProductsAsync();
+            Logger.LogInformation("Cargados {Count} productos", products.Count);
+
+            // Select first category by default
+            if (categories.Any())
+            {
+                selectedCategoryId = categories.First().Id;
+                FilterProducts();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error cargando datos");
+            errorMessage = $"Error al cargar datos: {ex.Message}";
+        }
+    }
+
+    private string GetOrderTypeLabel()
+    {
+        return OrderTypeStr.ToLower() switch
+        {
+            "delivery" => "🚚 Delivery",
+            "takeout" => "🥡 Para Llevar",
+            "dine_in" => "🍽️ Comer Aquí",
+            _ => OrderTypeStr
+        };
+    }
+
+    private void SelectCategory(int categoryId)
+    {
+        selectedCategoryId = categoryId;
+        FilterProducts();
+    }
+
+    private void FilterProducts()
+    {
+        isLoadingProducts = true;
+        filteredProducts = products
+            .Where(p => p.CategoryId == selectedCategoryId && p.IsAvailable)
+            .ToList();
+        isLoadingProducts = false;
+        StateHasChanged();
+    }
+
+    private void AddToCart(Product product)
+{
+    // Busca si ya existe el mismo producto SIN modificadores
+    var existingItem = cart.FirstOrDefault(i => 
+        i.ProductId == product.Id && 
+        string.IsNullOrEmpty(i.SpecialInstructions));
+
+    if (existingItem != null)
+    {
+        // Si existe sin modificadores, aumenta la cantidad
+        existingItem.Quantity++;
+        selectedCartItem = existingItem;
+    }
+    else
+    {
+        // Si no existe o tiene modificadores, crea uno nuevo
+        var newItem = new CartItem
+        {
+            ProductId = product.Id,
+            ProductName = product.Name,
+            UnitPrice = product.Price,
+            Quantity = 1
+        };
+        cart.Add(newItem);
+        selectedCartItem = newItem;
+    }
+
+    Logger.LogInformation("Item agregado: {ProductName}, Total items en carrito: {Count}", product.Name, cart.Count);
+    StateHasChanged();
+}
+
+    private void SelectCartItem(CartItem item)
+    {
+        selectedCartItem = item;
+        StateHasChanged();
+    }
+
+    private void IncreaseQuantity(CartItem item)
+    {
+        item.Quantity++;
+        StateHasChanged();
+    }
+
+    private void DecreaseQuantity(CartItem item)
+    {
+        if (item.Quantity > 1)
+        {
+            item.Quantity--;
+        }
+        else
+        {
+            RemoveFromCart(item);
+        }
+        StateHasChanged();
+    }
+
+    private void RemoveFromCart(CartItem item)
+    {
+        cart.Remove(item);
+        if (selectedCartItem == item)
+        {
+            selectedCartItem = null;
+        }
+        StateHasChanged();
+    }
+
+    private void ClearCart()
+    {
+        cart.Clear();
+        selectedCartItem = null;
+        StateHasChanged();
+    }
+
+    private void OpenCommentModal(CartItem item)
+    {
+        editingCartItem = item;
+        tempComment = item.SpecialInstructions ?? "";
+        showCommentModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseCommentModal()
+    {
+        showCommentModal = false;
+        editingCartItem = null;
+        tempComment = "";
+        StateHasChanged();
+    }
+
+    private void AddQuickModifier(string modifier)
+    {
+        if (!string.IsNullOrEmpty(tempComment) && !tempComment.EndsWith("\n"))
+        {
+            tempComment += "\n";
+        }
+        tempComment += modifier;
+        StateHasChanged();
+    }
+
+    private void SaveComment()
+    {
+        if (editingCartItem != null)
+        {
+            editingCartItem.SpecialInstructions = tempComment.Trim();
+        }
+        CloseCommentModal();
+    }
+
+    private decimal CalculateSubtotal()
+    {
+        return cart.Sum(i => i.Subtotal);
+    }
+
+    private decimal CalculateTax()
+    {
+        return CalculateSubtotal() * 0.135m;
+    }
+
+    private decimal CalculateTotal()
+    {
+        return CalculateSubtotal() + CalculateTax();
+    }
+
+    private async Task SendToKitchen()
+{
+    if (!cart.Any())
+    {
+        errorMessage = "El carrito está vacío!";
+        return;
+    }
+
+    if (customer == null)
+    {
+        errorMessage = "Cliente no encontrado";
+        return;
+    }
+
+    isSubmitting = true;
+    errorMessage = "";
+    successMessage = "";
+
+    try
+    {
+        Logger.LogInformation("Enviando a cocina para {CustomerName}", customer.Name);
+
+        var orderData = new OrderCreate
+        {
+            CustomerName = customer.Name,
+            OrderType = OrderTypeStr.ToLower(),
+            Items = cart.Select(item => new OrderItemCreate
+            {
+                ProductId = item.ProductId,
+                Quantity = item.Quantity,
+                SpecialInstructions = item.SpecialInstructions
+            }).ToList(),
+            Notes = orderNotes,
+            TableId = null,
+            PaymentMethod = null,
+            Status = "preparing" // Send to Kitchen -> Preparing
+        };
+
+        var createdOrder = await ApiService.CreateOrderAsync(orderData);
+
+        if (createdOrder != null)
+        {
+            Logger.LogInformation("Orden enviada a cocina: {OrderNumber}", createdOrder.OrderNumber);
+            successMessage = $"Orden {createdOrder.OrderNumber} enviada a cocina! ✓";
+            
+            // Limpiar el carrito pero permanecer en la página
+            await Task.Delay(1500);
+            cart.Clear();
+            selectedCartItem = null;
+            orderNotes = "";
+            successMessage = "";
+            // Generate new ticket number for next order
+            ticketNumber = new Random().Next(1000, 9999);
+        }
+        else
+        {
+            errorMessage = "Error al enviar a cocina. Por favor intenta de nuevo.";
+        }
+    }
+    catch (Exception ex)
+    {
+        Logger.LogError(ex, "Error al enviar a cocina");
+        errorMessage = $"Error: {ex.Message}";
+    }
+    finally
+    {
+        isSubmitting = false;
+        StateHasChanged();
+    }
+}
+
+    private async Task ConfirmOrder()
+    {
+        if (!cart.Any())
+        {
+            errorMessage = "El carrito está vacío!";
+            return;
+        }
+
+        if (customer == null)
+        {
+            errorMessage = "Cliente no encontrado";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = "";
+        successMessage = "";
+
+        try
+        {
+            Logger.LogInformation("Confirmando orden para {CustomerName}", customer.Name);
+
+            var orderData = new OrderCreate
+            {
+                CustomerName = customer.Name,
+                OrderType = OrderTypeStr.ToLower(),
+                Items = cart.Select(item => new OrderItemCreate
+                {
+                    ProductId = item.ProductId,
+                    Quantity = item.Quantity,
+                    SpecialInstructions = item.SpecialInstructions
+                }).ToList(),
+                Notes = orderNotes,
+                TableId = null,
+                PaymentMethod = "cash", // Default to cash for now, or add selector
+                Status = "completed" // Confirm & Pay -> Completed
+            };
+
+            var createdOrder = await ApiService.CreateOrderAsync(orderData);
+
+            if (createdOrder != null)
+            {
+                Logger.LogInformation("Orden creada: {OrderNumber}", createdOrder.OrderNumber);
+                successMessage = $"Orden {createdOrder.OrderNumber} completada exitosamente!";
+                
+                // Wait 2 seconds and navigate back
+                await Task.Delay(2000);
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                errorMessage = "Error al crear la orden. Por favor intenta de nuevo.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al confirmar orden");
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CancelOrder()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

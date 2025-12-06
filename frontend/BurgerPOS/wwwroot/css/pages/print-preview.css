@@ -1,0 +1,265 @@
+/* Print Preview - Legacy Industrial Theme */
+
+.print-preview-container {
+    height: 100vh;
+    width: 100vw;
+    display: grid;
+    grid-template-columns: 45% 55%;
+    /* Control Panel - Preview */
+    font-family: 'Segoe UI', sans-serif;
+    overflow: hidden;
+}
+
+/* LEFT COLUMN: Control Panel */
+.control-panel {
+    background-color: #ced6e0;
+    /* Industrial Grey */
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    border-right: 2px solid #a4b0be;
+    background-image: linear-gradient(45deg, #ced6e0 25%, #dfe4ea 25%, #dfe4ea 50%, #ced6e0 50%, #ced6e0 75%, #dfe4ea 75%, #dfe4ea 100%);
+    background-size: 20px 20px;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.panel-header h2 {
+    margin: 0;
+    color: #2f3542;
+    font-weight: 700;
+}
+
+.btn-close {
+    background-color: #ff4757;
+    color: white;
+    border: 2px solid #c0392b;
+    padding: 10px 20px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.2);
+}
+
+.btn-close:active {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+}
+
+.main-actions {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.btn-primary-print {
+    background-color: #1e3799;
+    /* Dark Blue */
+    color: white;
+    border: 2px solid #0c2461;
+    width: 100%;
+    padding: 15px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 3px 3px 0px rgba(0, 0, 0, 0.3);
+}
+
+.btn-primary-print:active {
+    transform: translate(3px, 3px);
+    box-shadow: none;
+}
+
+.station-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+}
+
+.station-block {
+    background-color: #f1f2f6;
+    border: 1px solid #bdc3c7;
+    padding: 15px;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05);
+}
+
+.station-label {
+    font-weight: bold;
+    color: #57606f;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #dcdde1;
+    padding-bottom: 5px;
+}
+
+.station-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.btn-station {
+    background-color: #3742fa;
+    color: white;
+    border: 1px solid #2f3542;
+    padding: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 2px 2px 0px rgba(0, 0, 0, 0.2);
+}
+
+.btn-station.secondary {
+    background-color: #535c68;
+    font-size: 0.8rem;
+}
+
+.btn-station:active {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+}
+
+
+/* RIGHT COLUMN: Ticket Preview */
+.preview-panel {
+    background-color: #2d3436;
+    /* Dark Background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+    overflow-y: auto;
+}
+
+.ticket-paper {
+    background-color: #fff;
+    width: 380px;
+    /* Ancho estándar aprox de papel 80mm en pantalla */
+    padding: 20px;
+    font-family: 'Courier New', Courier, monospace;
+    /* Vital para la alineación */
+    font-size: 14px;
+    font-weight: bold;
+    color: #000;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+    /* Sombra para que parezca papel flotando */
+    margin: 20px auto;
+    white-space: pre-wrap;
+    /* Respeta los espacios y saltos de línea */
+    min-height: 500px;
+}
+
+.ticket-header {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.ticket-header h2,
+.ticket-header h3 {
+    margin: 5px 0;
+}
+
+.ticket-header h3 {
+    font-size: 1rem;
+}
+
+.dashed-line {
+    overflow: hidden;
+    white-space: nowrap;
+    margin: 10px 0;
+}
+
+.ticket-info p {
+    margin: 2px 0;
+}
+
+.ticket-items {
+    margin: 15px 0;
+}
+
+.item-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.qty {
+    width: 30px;
+}
+
+.desc {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: 10px;
+}
+
+.price {
+    text-align: right;
+}
+
+.item-modifier {
+    font-style: italic;
+    font-size: 0.9em;
+    padding-left: 30px;
+}
+
+.ticket-footer {
+    margin-top: 20px;
+}
+
+.total-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.final-total {
+    font-size: 1.2rem;
+    font-weight: 900;
+    margin-top: 10px;
+    border-top: 1px dashed #000;
+    padding-top: 5px;
+}
+
+.loading-message {
+    color: white;
+    font-size: 1.5rem;
+    font-family: monospace;
+}
+
+/* PRINT MEDIA QUERY - Ensure only the ticket prints */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+
+    #ticket-preview,
+    #ticket-preview * {
+        visibility: visible;
+    }
+
+    #ticket-preview {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+        min-height: auto;
+    }
+
+    .print-preview-container {
+        display: block;
+        height: auto;
+        overflow: visible;
+    }
+}
