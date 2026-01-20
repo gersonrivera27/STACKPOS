@@ -2,6 +2,7 @@
 Configuración de la aplicación
 """
 import os
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
@@ -23,10 +24,14 @@ class Settings(BaseSettings):
     API_DESCRIPTION: str = "API completa para sistema POS de restaurante de hamburguesas"
     
     # CORS - Configurable via environment
-    ALLOWED_ORIGINS: list = os.getenv(
-        "ALLOWED_ORIGINS", 
-        "http://localhost:5001,http://127.0.0.1:5001"
-    ).split(",")
+    ALLOWED_ORIGINS: list[str] | str = ["http://localhost:5001", "http://127.0.0.1:5001"]
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_allowed_origins(cls, v):
+        if isinstance(v, str):
+            return [i.strip() for i in v.split(",")]
+        return v
     
     # Configuración de negocio
     TAX_RATE: float = 0.10  # 10% de impuestos
