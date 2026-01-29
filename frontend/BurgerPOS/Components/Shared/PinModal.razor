@@ -1,0 +1,216 @@
+@using BurgerPOS.Models
+@using BurgerPOS.Services
+@inject AuthenticationService AuthService
+
+<div class="pin-modal-overlay">
+    <div class="pin-modal-content">
+        <div class="modal-header">
+            <h3>@(selectedUser == null ? "Seleccionar Mesero" : "Ingresar PIN")</h3>
+            <button class="close-btn" @onclick="Cancel">✕</button>
+        </div>
+
+        <div class="modal-body">
+            @if (errorMessage != null)
+            {
+                <div class="error-message">@errorMessage</div>
+            }
+
+            @if (selectedUser == null)
+            {
+                <div class="users-grid">
+                    @if (isLoadingUsers)
+                    {
+                        <div>Cargando usuarios...</div>
+                    }
+                    else
+                    {
+                        @foreach (var user in users)
+                        {
+                            <button class="user-card" @onclick="() => SelectUser(user)">
+                                <div class="user-avatar">@(user.FullName?.FirstOrDefault() ?? user.Username.FirstOrDefault())</div>
+                                <div class="user-name">@user.FullName</div>
+                            </button>
+                        }
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="pin-entry-section">
+                    <div class="selected-user-display" @onclick="DeselectUser">
+                        <span>👤 @selectedUser.FullName</span>
+                        <small>(Cambiar)</small>
+                    </div>
+
+                    <div class="pin-display">
+                        @foreach (var c in pinInput)
+                        {
+                            <span class="pin-dot">●</span>
+                        }
+                    </div>
+
+                    <div class="numpad">
+                        @for (int i = 1; i <= 9; i++)
+                        {
+                            int val = i;
+                            <button class="num-btn" @onclick="() => AppendPin(val)">@val</button>
+                        }
+                        <button class="num-btn clear" @onclick="ClearPin">C</button>
+                        <button class="num-btn" @onclick="() => AppendPin(0)">0</button>
+                        <button class="num-btn enter" @onclick="SubmitPin">➔</button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .pin-modal-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.8);
+        z-index: 2000;
+        display: flex; justify-content: center; align-items: center;
+    }
+
+    .pin-modal-content {
+        background: white;
+        width: 400px;
+        border-radius: 10px;
+        overflow: hidden;
+        display: flex; flex-direction: column;
+    }
+
+    .modal-header {
+        background: #333; color: white;
+        padding: 15px;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    
+    .close-btn { background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer; }
+
+    .modal-body { padding: 20px; }
+
+    .users-grid {
+        display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+        max-height: 400px; overflow-y: auto;
+    }
+
+    .user-card {
+        background: #f5f5f5; border: 1px solid #ddd;
+        padding: 15px; border-radius: 8px;
+        display: flex; flex-direction: column; align-items: center; gap: 10px;
+        cursor: pointer; transition: background 0.2s;
+    }
+    .user-card:hover { background: #e0e0e0; }
+
+    .user-avatar {
+        width: 50px; height: 50px; background: #2196f3; color: white;
+        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        font-size: 1.5rem; font-weight: bold;
+    }
+    
+    .user-name { font-weight: 500; }
+
+    .pin-entry-section { display: flex; flex-direction: column; gap: 20px; align-items: center; }
+
+    .selected-user-display {
+        cursor: pointer; border-bottom: 1px dashed #999;
+        display: flex; align-items: center; gap: 10px;
+    }
+
+    .pin-display {
+        height: 40px; display: flex; gap: 10px; justify-content: center; align-items: center;
+    }
+    .pin-dot { font-size: 2rem; color: #333; }
+
+    .numpad {
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+        width: 100%;
+    }
+
+    .num-btn {
+        padding: 20px; font-size: 1.5rem; font-weight: bold;
+        background: #eee; border: none; border-radius: 8px; cursor: pointer;
+    }
+    .num-btn:active { background: #ccc; }
+    .num-btn.clear { background: #ffcdd2; color: #c62828; }
+    .num-btn.enter { background: #c8e6c9; color: #2e7d32; }
+    
+    .error-message {
+        background: #ffebee; color: #c62828; padding: 10px; margin-bottom: 15px; border-radius: 4px; text-align: center;
+    }
+</style>
+
+@code {
+    [Parameter] public EventCallback<User> OnAuthenticated { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private List<User> users = new();
+    private bool isLoadingUsers = true;
+    private User? selectedUser;
+    private string pinInput = "";
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        isLoadingUsers = true;
+        users = await AuthService.GetUsersForLoginAsync();
+        isLoadingUsers = false;
+    }
+
+    private void SelectUser(User user)
+    {
+        selectedUser = user;
+        pinInput = "";
+        errorMessage = null;
+    }
+
+    private void DeselectUser()
+    {
+        selectedUser = null;
+        pinInput = "";
+        errorMessage = null;
+    }
+
+    private void AppendPin(int digit)
+    {
+        if (pinInput.Length < 6)
+        {
+            pinInput += digit.ToString();
+        }
+    }
+
+    private void ClearPin()
+    {
+        pinInput = "";
+        errorMessage = null;
+    }
+
+    private async Task SubmitPin()
+    {
+        if (selectedUser == null) return;
+        if (string.IsNullOrEmpty(pinInput)) return;
+
+        bool success = await AuthService.LoginWithPin(selectedUser.Id, pinInput);
+        if (success)
+        {
+            await OnAuthenticated.InvokeAsync(selectedUser);
+        }
+        else
+        {
+            errorMessage = "PIN Incorrecto";
+            pinInput = "";
+        }
+    }
+
+    private async Task Cancel()
+    {
+        await OnCancel.InvokeAsync();
+    }
+}

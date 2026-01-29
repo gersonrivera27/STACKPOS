@@ -22,25 +22,51 @@
                     <span>Inicio</span>
                 </NavLink>
             </li>
-            <li>
-                <NavLink class="navbar-item" href="/productos">
-                    <i class="bi bi-box-seam-fill nav-icon"></i>
-                    <span>Productos</span>
-                </NavLink>
-            </li>
+            <!-- Products and History removed as per request -->
             <li>
                 <NavLink class="navbar-item" href="/ordenes">
                     <i class="bi bi-clipboard-data-fill nav-icon"></i>
                     <span>Órdenes</span>
                 </NavLink>
             </li>
+            <li>
+                <NavLink class="navbar-item" href="/cocina">
+                    <i class="bi bi-fire nav-icon"></i>
+                    <span>Cocina</span>
+                </NavLink>
+            </li>
+            
+            <li>
+                <NavLink class="navbar-item" href="/caja">
+                    <i class="bi bi-cash-stack nav-icon"></i>
+                    <span>Caja</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink class="navbar-item" href="/tables">
+                     <i class="bi bi-grid-3x3-gap-fill nav-icon"></i>
+                    <span>Mesas</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink class="navbar-item" href="/dashboard">
+                    <i class="bi bi-bar-chart-fill nav-icon"></i>
+                    <span>Dashboard</span>
+                </NavLink>
+            </li>
             
             <AuthorizeView Roles="admin">
-                <Authorized>
+                <Authorized Context="adminContext">
+                     <li>
+                        <NavLink class="navbar-item" href="/admin/products" Match="NavLinkMatch.Prefix">
+                            <i class="bi bi-gear-fill nav-icon"></i>
+                            <span>Admin Productos</span>
+                        </NavLink>
+                    </li>
                     <li>
-                        <NavLink class="navbar-item" href="/historial">
-                            <i class="bi bi-graph-up-arrow nav-icon"></i>
-                            <span>Historial</span>
+                        <NavLink class="navbar-item" href="/admin/categories" Match="NavLinkMatch.Prefix">
+                            <i class="bi bi-tags-fill nav-icon"></i>
+                            <span>Admin Categorías</span>
                         </NavLink>
                     </li>
                 </Authorized>

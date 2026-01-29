@@ -98,6 +98,9 @@
 .user-info {
     display: flex;
     align-items: center;
+    margin-left: auto;
+    /* Push to the right */
+    height: 100%;
 }
 
 .user-greeting {
@@ -137,6 +140,17 @@
 .logout-btn:hover {
     background-color: var(--danger);
     color: white;
+}
+
+.btn-map {
+    background-color: #27ae60;
+    /* Green for map */
+    color: white;
+    margin-left: 5px;
+}
+
+.btn-map:hover {
+    background-color: #219150;
 }
 
 /* Responsive */

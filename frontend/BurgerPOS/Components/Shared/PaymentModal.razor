@@ -1,0 +1,238 @@
+@using BurgerPOS.Models
+
+<div class="modal-backdrop" @onclick="OnClose">
+    <div class="modal-content small" @onclick:stopPropagation="true">
+        <div class="modal-header">
+            <h2><i class="bi bi-credit-card-2-front"></i> COBRAR</h2>
+            <button class="btn-close-modal" @onclick="OnClose"><i class="bi bi-x"></i></button>
+        </div>
+
+        <div class="modal-body">
+            <!-- Resumen -->
+            <div class="payment-summary">
+                <div class="summary-line"><span>Subtotal</span><span>€@Subtotal.ToString("F2")</span></div>
+                <div class="summary-line"><span>IVA (13.5%)</span><span>€@Tax.ToString("F2")</span></div>
+                <div class="summary-line total"><span>TOTAL A PAGAR</span><span>€@Total.ToString("F2")</span></div>
+            </div>
+
+            <!-- Método de Pago -->
+            <label class="modal-label">Método de Pago</label>
+            <div class="payment-options">
+                <button class="btn-payment-option @(paymentType == "cash" ? "active" : "")" @onclick='() => SelectPaymentType("cash")'>
+                    <i class="bi bi-cash-coin" style="font-size: 1.5rem;"></i>
+                    <span>Efectivo</span>
+                </button>
+                <button class="btn-payment-option @(paymentType == "card" ? "active" : "")" @onclick='() => SelectPaymentType("card")'>
+                    <i class="bi bi-credit-card" style="font-size: 1.5rem;"></i>
+                    <span>Tarjeta</span>
+                </button>
+                <button class="btn-payment-option @(paymentType == "mixed" ? "active" : "")" @onclick='() => SelectPaymentType("mixed")'>
+                    <i class="bi bi-layers" style="font-size: 1.5rem;"></i>
+                    <span>Mixto</span>
+                </button>
+            </div>
+
+            <!-- Inputs -->
+            @if (paymentType == "cash" || paymentType == "mixed")
+            {
+                <div class="modal-form-group">
+                    <label class="modal-label">Efectivo Recibido</label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 11px; font-weight: bold; color: var(--success-color);">€</span>
+                        <input type="number" class="modal-input" style="padding-left: 25px; font-size: 1.2rem; font-weight: bold;" 
+                               @bind="cashAmount" @bind:event="oninput" step="0.01" min="0" placeholder="0.00" />
+                    </div>
+                    
+                    <div class="quick-amounts">
+                        <button class="btn-quick" @onclick="() => SetQuickAmount(5)">€5</button>
+                        <button class="btn-quick" @onclick="() => SetQuickAmount(10)">€10</button>
+                        <button class="btn-quick" @onclick="() => SetQuickAmount(20)">€20</button>
+                        <button class="btn-quick" @onclick="() => SetQuickAmount(50)">€50</button>
+                        <button class="btn-quick" style="background:#e8f5e9; color: var(--success-color); border-color: var(--success-color);" @onclick="SetExactAmount">EXACTO</button>
+                    </div>
+                </div>
+            }
+
+            @if (paymentType == "card")
+            {
+                 <div class="modal-alert" style="background: #e3f2fd; color: #1565c0;">
+                    <i class="bi bi-info-circle-fill"></i>
+                    Cobrar en terminal: <strong>€@Total.ToString("F2")</strong>
+                </div>
+            }
+
+            @if (paymentType == "mixed")
+            {
+                <div class="modal-form-group">
+                    <label class="modal-label">Monto Tarjeta</label>
+                     <div style="position: relative;">
+                        <span style="position: absolute; left: 10px; top: 11px; font-weight: bold; color: var(--info-color);">€</span>
+                        <input type="number" class="modal-input" style="padding-left: 25px;"
+                               @bind="cardAmount" @bind:event="oninput" step="0.01" min="0" />
+                    </div>
+                </div>
+            }
+
+            <!-- Propina -->
+            <div class="modal-form-group">
+                <label class="modal-label">Propina (Opcional)</label>
+                 <div style="position: relative;">
+                    <span style="position: absolute; left: 10px; top: 11px; color: #f39c12;">€</span>
+                    <input type="number" class="modal-input" style="padding-left: 25px;"
+                           @bind="tipAmount" @bind:event="oninput" step="0.01" min="0" placeholder="0.00" />
+                </div>
+            </div>
+
+            <!-- Cambio / Resultado -->
+            @if (paymentType == "cash" || paymentType == "mixed")
+            {
+                var change = CalculateChange();
+                var isEnough = change >= 0;
+                
+                <div class="result-box @(isEnough ? "success" : "error")">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 600;">@(isEnough ? "CAMBIO" : "FALTA")</span>
+                        <span style="font-size: 1.5rem; font-weight: 800;">€@Math.Abs(change).ToString("F2")</span>
+                    </div>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="modal-alert">
+                    <i class="bi bi-exclamation-triangle-fill"></i> @errorMessage
+                </div>
+            }
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn-modal btn-secondary" @onclick="OnClose">CANCELAR</button>
+            <button class="btn-modal btn-primary" @onclick="ConfirmPayment" disabled="@(!CanConfirmPayment() || isProcessing)">
+                @if(isProcessing) { <span class="spinner-border spinner-border-sm"></span> }
+                else { <i class="bi bi-checkUB-lg"></i> }
+                CONFIRMAR
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public decimal Subtotal { get; set; }
+    [Parameter] public decimal Tax { get; set; }
+    [Parameter] public decimal Total { get; set; }
+    [Parameter] public int OrderId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<PaymentResult> OnPaymentConfirmed { get; set; }
+
+    private string paymentType = "cash";
+    private decimal cashAmount = 0;
+    private decimal cardAmount = 0;
+    private decimal tipAmount = 0;
+    private bool isProcessing = false;
+    private string errorMessage = "";
+
+    protected override void OnInitialized()
+    {
+        // Default cash amount to Total for quick checkout if cash is default
+        // cashAmount = Total; // Uncomment if we want default autofill
+    }
+
+    private void SelectPaymentType(string type)
+    {
+        paymentType = type;
+        errorMessage = "";
+        
+        if (type == "cash") cardAmount = 0;
+        else if (type == "card") { cashAmount = 0; cardAmount = Total; }
+        else if (type == "mixed") {
+             // For mixed, start with half/half or smart default?
+             // Let's keep 0 and let user fill
+        }
+    }
+
+    private void SetQuickAmount(decimal amount)
+    {
+        cashAmount = amount;
+    }
+
+    private void SetExactAmount()
+    {
+        if (paymentType == "cash") cashAmount = Total;
+        else if (paymentType == "mixed") { 
+            cashAmount = Total - cardAmount; 
+            if (cashAmount < 0) cashAmount = 0; 
+        }
+    }
+
+    private decimal CalculateTotalReceived()
+    {
+        return paymentType switch
+        {
+            "cash" => cashAmount,
+            "card" => Total,
+            "mixed" => cashAmount + cardAmount,
+            _ => 0
+        };
+    }
+
+    private decimal CalculateChange() => CalculateTotalReceived() - Total;
+
+    private bool CanConfirmPayment()
+    {
+        // Allow a small tolerance for floating point errors if needed, but decimal is usually precise
+        return paymentType switch
+        {
+            "cash" => cashAmount >= Total,
+            "card" => true,
+            "mixed" => (cashAmount + cardAmount) >= Total,
+            _ => false
+        };
+    }
+
+    private async Task ConfirmPayment()
+    {
+        if (!CanConfirmPayment())
+        {
+            errorMessage = "Monto insuficiente";
+            return;
+        }
+
+        isProcessing = true;
+        errorMessage = "";
+
+        try
+        {
+            var result = new PaymentResult
+            {
+                OrderId = OrderId,
+                PaymentType = paymentType,
+                CashAmount = paymentType == "card" ? 0 : cashAmount,
+                CardAmount = paymentType == "cash" ? 0 : (paymentType == "card" ? Total : cardAmount),
+                TipAmount = tipAmount,
+                ChangeAmount = CalculateChange() > 0 ? CalculateChange() : 0,
+                TotalAmount = Total
+            };
+
+            await OnPaymentConfirmed.InvokeAsync(result);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    public class PaymentResult
+    {
+        public int OrderId { get; set; }
+        public string PaymentType { get; set; } = "cash";
+        public decimal CashAmount { get; set; }
+        public decimal CardAmount { get; set; }
+        public decimal TipAmount { get; set; }
+        public decimal ChangeAmount { get; set; }
+        public decimal TotalAmount { get; set; }
+    }
+}

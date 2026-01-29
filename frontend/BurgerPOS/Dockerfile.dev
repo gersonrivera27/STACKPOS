@@ -1,0 +1,25 @@
+# Dockerfile para desarrollo del frontend
+FROM mcr.microsoft.com/dotnet/sdk:8.0
+
+WORKDIR /app
+
+# Configurar variables de entorno
+ENV ASPNETCORE_ENVIRONMENT=Development
+ENV ASPNETCORE_URLS=http://+:5000
+ENV DOTNET_USE_POLLING_FILE_WATCHER=true
+ENV DOTNET_WATCH_RESTART_ON_RUDE_EDIT=true
+
+# Copiar archivos de proyecto primero para aprovechar cache de Docker
+COPY BurgerPOS/*.csproj ./BurgerPOS/
+RUN dotnet restore ./BurgerPOS/BurgerPOS.csproj
+
+# Copiar todo el código fuente
+COPY . .
+
+WORKDIR /app/BurgerPOS
+
+# Exponer puerto
+EXPOSE 5000
+
+# Ejecutar la aplicación
+CMD ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:5000"]

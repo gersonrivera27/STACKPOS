@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 
 from .config import settings
-from .routers import categories, products, orders, modifiers, tables, reports, customers, auth
+from fastapi.staticfiles import StaticFiles
+from .routers import categories, products, orders, modifiers, tables, reports, customers, auth, cash_register, uploads
 
 # Crear aplicación - Disable docs in production
 app = FastAPI(
@@ -27,6 +28,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Montar estáticos
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 # Registrar routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(categories.router, prefix="/api/categories", tags=["Categories"])
@@ -36,6 +40,8 @@ app.include_router(modifiers.router, prefix="/api/modifiers", tags=["Modifiers"]
 app.include_router(tables.router, prefix="/api/tables", tags=["Tables"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(customers.router, prefix="/api/customers", tags=["Customers"])
+app.include_router(cash_register.router, prefix="/api/cash", tags=["Cash Register"])
+app.include_router(uploads.router, prefix="/api/uploads", tags=["Uploads"])
 
 # Endpoints principales
 @app.get("/")
@@ -53,7 +59,8 @@ def read_root():
             "modifiers": "/api/modifiers",
             "tables": "/api/tables",
             "reports": "/api/reports",
-            "customers": "/api/customers"
+            "customers": "/api/customers",
+            "cash": "/api/cash"
         }
     }
 

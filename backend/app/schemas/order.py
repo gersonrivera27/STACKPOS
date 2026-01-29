@@ -44,6 +44,8 @@ class OrderCreate(BaseModel):
     phone_line: Optional[int] = Field(None, ge=1, le=4)
     delivery_fee: Decimal = Decimal("0.00")
     status: Optional[OrderStatus] = None
+    table_id: Optional[int] = None
+    user_id: Optional[int] = None
 
 class OrderBase(BaseModel):
     customer_id: int
@@ -55,11 +57,16 @@ class OrderBase(BaseModel):
     total: Decimal
     notes: Optional[str] = None
     phone_line: Optional[int] = None
+    table_id: Optional[int] = None
+    user_id: Optional[int] = None
 
 class Order(OrderBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    order_number: str
+    customer_name: Optional[str] = None
+    waiter_name: Optional[str] = None
     
     class Config:
         from_attributes = True

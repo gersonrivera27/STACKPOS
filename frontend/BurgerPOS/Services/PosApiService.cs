@@ -149,11 +149,13 @@ public class PosApiService
 
     // ==================== PRODUCTS ====================
 
-    public async Task<List<Product>> GetProductsAsync(int? categoryId = null)
+    public async Task<List<Product>> GetProductsAsync(int? categoryId = null, bool includeInactive = false)
     {
         try
         {
-            var url = "/api/products?available_only=true";
+            // available_only = !includeInactive
+            var availableOnly = !includeInactive;
+            var url = $"/api/products?available_only={availableOnly.ToString().ToLower()}";
             if (categoryId.HasValue)
             {
                 url += $"&category_id={categoryId.Value}";
@@ -169,9 +171,86 @@ public class PosApiService
         }
     }
 
+    public async Task<Product?> CreateProductAsync(ProductCreate product)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/api/products", product);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<Product>();
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creando producto");
+            return null;
+        }
+    }
+
+    public async Task<Product?> UpdateProductAsync(int productId, ProductUpdate product)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"/api/products/{productId}", product);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<Product>();
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error actualizando producto");
+            return null;
+        }
+    }
+
+    public async Task<bool> DeleteProductAsync(int productId)
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync($"/api/products/{productId}");
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error eliminando producto");
+            return false;
+        }
+    }
+
+    public async Task<string?> UploadImageAsync(Microsoft.AspNetCore.Components.Forms.IBrowserFile file)
+    {
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024); // 10MB max
+            using var fileContent = new StreamContent(stream);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+            
+            content.Add(fileContent, "file", file.Name);
+
+            var response = await _httpClient.PostAsync("/api/uploads/images", content);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+                return result?["url"];
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error subiendo imagen");
+            return null;
+        }
+    }
+
     // ==================== ORDERS ====================
 
-    public async Task<List<Order>> GetOrdersAsync(string? status = null, int limit = 100)
+    public async Task<List<Order>> GetOrdersAsync(string? status = null, int limit = 100, bool activeSessionOnly = false)
     {
         try
         {
@@ -179,6 +258,11 @@ public class PosApiService
             if (!string.IsNullOrEmpty(status))
             {
                 url += $"&status={status}";
+            }
+            
+            if (activeSessionOnly)
+            {
+                url += "&only_active_session=true";
             }
 
             var orders = await _httpClient.GetFromJsonAsync<List<Order>>(url);
@@ -204,6 +288,56 @@ public class PosApiService
         {
             _logger.LogError(ex, "Error obteniendo categorías");
             return new List<Category>();
+        }
+    }
+
+    public async Task<Category?> CreateCategoryAsync(CategoryCreate category)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/api/categories", category);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<Category>();
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creando categoría");
+            return null;
+        }
+    }
+
+    public async Task<Category?> UpdateCategoryAsync(int id, CategoryUpdate category)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"/api/categories/{id}", category);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<Category>();
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error actualizando categoría");
+            return null;
+        }
+    }
+
+    public async Task<bool> DeleteCategoryAsync(int id)
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync($"/api/categories/{id}");
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error eliminando categoría");
+            return false;
         }
     }
     
@@ -279,6 +413,241 @@ public class PosApiService
         {
             _logger.LogError(ex, "Excepción actualizando estado de orden");
             return null;
+        }
+    }
+
+    // ==================== PAYMENTS ====================
+
+    public async Task<PaymentResponse?> CreatePaymentAsync(PaymentCreate payment)
+    {
+        try
+        {
+            _logger.LogInformation("Procesando pago para orden: {OrderId}", payment.OrderId);
+            
+            var response = await _httpClient.PostAsJsonAsync("/api/cash/payments", payment);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<PaymentResponse>();
+                _logger.LogInformation("Pago procesado exitosamente: {PaymentId}", result?.Id);
+                return result;
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Error procesando pago: {StatusCode} - {Error}", response.StatusCode, errorContent);
+                return null;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Excepción procesando pago");
+            return null;
+        }
+    }
+
+    // ==================== CASH SESSIONS ====================
+
+    public async Task<CashSession?> GetActiveCashSessionAsync(int? userId = null)
+    {
+        try
+        {
+            var url = "/api/cash/sessions/active";
+            if (userId.HasValue)
+            {
+                url += $"?user_id={userId.Value}";
+            }
+            
+            var response = await _httpClient.GetAsync(url);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<CashSession>();
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo sesión de caja activa");
+            return null;
+        }
+    }
+
+    public async Task<CashSession?> OpenCashSessionAsync(CashSessionCreate session)
+    {
+        try
+        {
+            _logger.LogInformation("Abriendo sesión de caja con monto: {Amount}", session.OpeningAmount);
+            
+            var response = await _httpClient.PostAsJsonAsync("/api/cash/sessions", session);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<CashSession>();
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Error abriendo sesión de caja: {Error}", errorContent);
+                return null;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Excepción abriendo sesión de caja");
+            return null;
+        }
+    }
+
+    public async Task<CashSession?> CloseCashSessionAsync(int sessionId, CashSessionClose closeData)
+    {
+        try
+        {
+            _logger.LogInformation("Cerrando sesión de caja {SessionId}", sessionId);
+            
+            var response = await _httpClient.PostAsJsonAsync($"/api/cash/sessions/{sessionId}/close", closeData);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<CashSession>();
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Excepción cerrando sesión de caja");
+            return null;
+        }
+    }
+
+    public async Task<CashSession?> GetCashSessionAsync(int sessionId)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<CashSession>($"/api/cash/sessions/{sessionId}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo sesión de caja");
+            return null;
+        }
+    }
+
+    public async Task<List<CashSession>> GetCashSessionsAsync(string? status = null)
+    {
+        try
+        {
+            var url = "/api/cash/sessions";
+            if (!string.IsNullOrEmpty(status))
+            {
+                url += $"?status={status}";
+            }
+            
+            var response = await _httpClient.GetAsync(url);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<List<CashSession>>() ?? new List<CashSession>();
+            }
+            return new List<CashSession>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo historial de sesiones");
+            return new List<CashSession>();
+        }
+    }
+    public async Task<PaymentResponse?> GetPaymentByOrderAsync(int orderId)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"/api/cash/payments/order/{orderId}");
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<PaymentResponse>();
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo pago de orden {OrderId}", orderId);
+            return null;
+        }
+    }
+
+    // ==================== REPORTS ====================
+
+    public async Task<DailySalesResponse?> GetDailySalesReportAsync(DateTime? date = null)
+    {
+        try
+        {
+            var url = "/api/reports/daily-sales";
+            if (date.HasValue)
+            {
+                url += $"?report_date={date.Value:yyyy-MM-dd}";
+            }
+
+            var response = await _httpClient.GetAsync(url);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<DailySalesResponse>();
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo reporte de ventas diarias");
+            return null;
+        }
+    }
+
+    public async Task<TopProductsResponse?> GetTopProductsReportAsync(DateTime? from = null, DateTime? to = null, int limit = 10)
+    {
+        try
+        {
+            var url = $"/api/reports/top-products?limit={limit}";
+            if (from.HasValue) url += $"&date_from={from.Value:yyyy-MM-dd}";
+            if (to.HasValue) url += $"&date_to={to.Value:yyyy-MM-dd}";
+
+            var response = await _httpClient.GetAsync(url);
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<TopProductsResponse>();
+                return result;
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo reporte de productos top");
+            return null;
+        }
+    }
+    // ==================== TABLES ====================
+
+    public async Task<List<Table>> GetTablesAsync()
+    {
+        try
+        {
+            var tables = await _httpClient.GetFromJsonAsync<List<Table>>("/api/tables");
+            return tables ?? new List<Table>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo mesas");
+            return new List<Table>();
+        }
+    }
+
+    public async Task<bool> UpdateTablePositionAsync(int tableId, int x, int y)
+    {
+        try
+        {
+            var response = await _httpClient.PatchAsync($"/api/tables/{tableId}/position?x={x}&y={y}", null);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error actualizando posición de mesa");
+            return false;
         }
     }
 }

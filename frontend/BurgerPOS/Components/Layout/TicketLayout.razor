@@ -1,0 +1,72 @@
+@inherits LayoutComponentBase
+
+<div class="ticket-layout">
+    @Body
+</div>
+
+<style>
+    /* Reset & Base */
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: 'Courier New', Courier, monospace; /* Monospaced for alignment */
+    }
+
+    body {
+        background: #eee;
+        color: black;
+    }
+
+    .ticket-layout {
+        width: 80mm; /* Standard thermal paper width */
+        margin: 0 auto;
+        background: white;
+        padding: 5mm;
+        min-height: 100vh;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    /* Print Specifics */
+    @@media print {
+        @@page {
+            margin: 0;
+            size: auto; /* auto is better for continuous roll */
+        }
+
+        body {
+            background: white;
+        }
+
+        .ticket-layout {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            box-shadow: none;
+        }
+
+        /* Hide browser header/footer if possible (depends on browser settings) */
+        header, footer, .no-print {
+            display: none !important;
+        }
+    }
+
+    /* Utilities for tickets */
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .text-left { text-align: left; }
+    .bold { font-weight: bold; }
+    .uppercase { text-transform: uppercase; }
+    
+    .divider {
+        border-top: 1px dashed black;
+        margin: 10px 0;
+    }
+
+    .double-divider {
+        border-top: 2px dashed black; /* Or solid double line styling */
+        margin: 10px 0;
+    }
+
+    .w-100 { width: 100%; }
+</style>

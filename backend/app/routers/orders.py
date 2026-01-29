@@ -21,12 +21,37 @@ def generate_order_number():
 
 @router.post("", response_model=Order, status_code=status.HTTP_201_CREATED)
 def create_order(order_data: OrderCreate, conn = Depends(get_db)):
-    """Crear nueva orden con items"""
+    """Crear nueva orden con items vinculada a la sesión de caja activa"""
     cursor = conn.cursor()
     
     try:
-        # Calcular totales
-        subtotal = Decimal("0.00")
+        # 1. Obtener sesión de caja activa
+        cursor.execute("""
+            SELECT id FROM cash_sessions 
+            WHERE status = 'open' 
+            ORDER BY id DESC LIMIT 1
+        """)
+        active_session = cursor.fetchone()
+        cash_session_id = active_session['id'] if active_session else None
+        
+        # 2. Generar número de orden
+        if cash_session_id:
+            # Si hay sesión, contar órdenes de esta sesión
+            cursor.execute("""
+                SELECT COUNT(*) as count 
+                FROM orders 
+                WHERE cash_session_id = %s
+            """, (cash_session_id,))
+            result = cursor.fetchone()
+            count = result['count'] if result else 0
+            # Formato: #001
+            order_number = f"#{count + 1:03d}"
+        else:
+            # Fallback si no hay sesión (usar timestamp)
+            order_number = f"ORD-{datetime.now().strftime('%H%M%S')}"
+
+        # 3. Calcular totales
+        total = Decimal("0.00")
         order_items_data = []
         
         for item in order_data.items:
@@ -51,40 +76,41 @@ def create_order(order_data: OrderCreate, conn = Depends(get_db)):
                     detail=f"Producto {product['name']} no está disponible"
                 )
             
-            # Calcular subtotal del item
-            item_subtotal = Decimal(str(product['price'])) * item.quantity
-            subtotal += item_subtotal
+            # En modelo Tax-Inclusive, el precio del producto es el precio final
+            item_total = Decimal(str(product['price'])) * item.quantity
+            total += item_total
             
+            # Guardamos el item_total como subtotal del item
             order_items_data.append({
                 'product_id': product['id'],
                 'quantity': item.quantity,
                 'unit_price': product['price'],
-                'subtotal': item_subtotal,
+                'subtotal': item_total,
                 'special_instructions': item.special_instructions
             })
         
-        # Calcular impuesto (13.5% VAT para Irlanda)
-        tax = subtotal * Decimal("0.135")
+        # Back-calculate Subtotal and Tax from Total (Tax Inclusive)
+        # Total = Subtotal * 1.135 -> Subtotal = Total / 1.135
+        subtotal = total / Decimal("1.135")
         
-        # Calcular total (subtotal + tax - discount)
+        # Tax = Total - Subtotal
+        tax = total - subtotal
+        
+        # Discount (0 por ahora)
         discount = Decimal("0.00")
-        total = subtotal + tax - discount
         
-        # Generar número de orden
-        order_number = generate_order_number()
-        
-        # Crear orden
+        # 4. Crear orden con cash_session_id
         cursor.execute("""
             INSERT INTO orders (
                 order_number, customer_name, order_type, status,
                 subtotal, tax, discount, total,
-                payment_method, notes, table_id
+                payment_method, notes, table_id, cash_session_id, user_id
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id, order_number, customer_name, order_type, status,
                       subtotal, tax, discount, total,
                       payment_method, notes, table_id, 
-                      created_at, completed_at
+                      created_at, completed_at, user_id
         """, (
             order_number,
             order_data.customer_name,
@@ -96,11 +122,17 @@ def create_order(order_data: OrderCreate, conn = Depends(get_db)):
             total,
             order_data.payment_method.value if order_data.payment_method else None,
             order_data.notes,
-            order_data.table_id
+            order_data.table_id,
+            cash_session_id,
+            order_data.user_id
         ))
         
         new_order = cursor.fetchone()
         order_id = new_order['id']
+        
+        # Actualizar estado de mesa si es para comer ahí
+        if order_data.table_id:
+            cursor.execute("UPDATE tables SET is_occupied = TRUE WHERE id = %s", (order_data.table_id,))
         
         # Crear items de la orden
         for item_data in order_items_data:
@@ -127,6 +159,9 @@ def create_order(order_data: OrderCreate, conn = Depends(get_db)):
         raise
     except Exception as e:
         conn.rollback()
+        import traceback
+        traceback.print_exc()
+        print(f"Error creating order: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/{order_id}", response_model=OrderWithDetails)
@@ -135,14 +170,17 @@ def get_order(order_id: int, conn = Depends(get_db)):
     cursor = conn.cursor()
     
     # Obtener orden
+    # Obtener orden con mesero
     cursor.execute("""
         SELECT 
-            id, order_number, customer_name, order_type, status,
-            subtotal, tax, discount, total,
-            payment_method, notes, table_id,
-            created_at, completed_at
-        FROM orders
-        WHERE id = %s
+            o.id, o.order_number, o.customer_name, o.order_type, o.status,
+            o.subtotal, o.tax, o.discount, o.total,
+            o.payment_method, o.notes, o.table_id,
+            o.created_at, o.completed_at, o.user_id,
+            u.full_name as waiter_name
+        FROM orders o
+        LEFT JOIN users u ON o.user_id = u.id
+        WHERE o.id = %s
     """, (order_id,))
     
     order = cursor.fetchone()
@@ -174,6 +212,7 @@ def get_order(order_id: int, conn = Depends(get_db)):
 def get_orders(
     status: Optional[str] = None,
     order_type: Optional[str] = None,
+    only_active_session: bool = False,
     limit: int = 50,
     conn = Depends(get_db)
 ):
@@ -182,15 +221,31 @@ def get_orders(
     
     query = """
         SELECT 
-            id, order_number, customer_name, order_type, status,
-            subtotal, tax, discount, total,
-            payment_method, notes, table_id,
-            created_at, completed_at
-        FROM orders
+            o.id, o.order_number, o.customer_name, o.order_type, o.status,
+            o.subtotal, o.tax, o.discount, o.total,
+            o.payment_method, o.notes, o.table_id, o.cash_session_id,
+            o.created_at, o.completed_at, o.user_id,
+            u.full_name as waiter_name
+        FROM orders o
+        LEFT JOIN users u ON o.user_id = u.id
         WHERE 1=1
     """
     
     params = []
+    
+    # Filtro por sesión activa
+    if only_active_session:
+        # Buscar la sesión abierta más reciente
+        cursor.execute("SELECT id FROM cash_sessions WHERE status = 'open' ORDER BY id DESC LIMIT 1")
+        active_session = cursor.fetchone()
+        
+        if active_session:
+            query += " AND cash_session_id = %s"
+            params.append(active_session['id'])
+        else:
+            # Si no hay sesión activa y se pide filtro, no devolver nada (o manejar según lógica de negocio)
+            # Retornar lista vacía ya que no hay 'órdenes de la sesión activa'
+            return []
     
     if status:
         query += " AND status = %s"
@@ -244,7 +299,11 @@ def update_order_status(
         
         if not updated_order:
             raise HTTPException(status_code=404, detail="Orden no encontrada")
-        
+            
+        # Liberar mesa si la orden se completa
+        if new_status == OrderStatus.COMPLETED and updated_order['table_id']:
+            cursor.execute("UPDATE tables SET is_occupied = FALSE WHERE id = %s", (updated_order['table_id'],))
+            
         conn.commit()
         return updated_order
     

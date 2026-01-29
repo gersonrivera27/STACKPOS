@@ -99,6 +99,7 @@
                                    id="eircodeInput"
                                    class="form-input" 
                                    @bind="eircode" 
+                                   @bind:event="oninput"
                                    placeholder="A92 X7Y8"
                                    maxlength="8"
                                    style="text-transform: uppercase;" />
@@ -108,6 +109,15 @@
                                     disabled="@isSearchingAddress">
                                 @(isSearchingAddress ? "🔄" : "🔍") Buscar
                             </button>
+                            @if (!string.IsNullOrEmpty(eircode))
+                            {
+                                <button class="btn-search btn-map" 
+                                        @onclick="OpenInMap" 
+                                        type="button"
+                                        title="Ver en Google Maps">
+                                    📍 Ver mapa
+                                </button>
+                            }
                         </div>
                         <small class="form-hint">Ingresa el Eircode para autocompletar la dirección</small>
                     </div>
@@ -339,6 +349,13 @@
     private void CreateNew()
     {
         existingCustomer = null;
+    }
+
+    private async Task OpenInMap()
+    {
+        if (string.IsNullOrWhiteSpace(eircode)) return;
+        Logger.LogInformation("📍 Abriendo Google Maps para Eircode: {Eircode}", eircode);
+        await JS.InvokeVoidAsync("openInGoogleMaps", eircode);
     }
 
     private async Task SearchAddress()

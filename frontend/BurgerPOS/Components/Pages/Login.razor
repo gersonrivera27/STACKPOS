@@ -7,271 +7,371 @@
 @inject AuthenticationService AuthService
 @inject NavigationManager NavigationManager
 
-<PageTitle>Login - BurgerPOS</PageTitle>
+<PageTitle>Login - StackPOS</PageTitle>
 
-<div class="login-container">
-    <div class="login-card">
-        <div class="login-header">
-            <div class="logo">🍔</div>
-            <h1>BurgerPOS</h1>
-            <p class="subtitle">Sistema de Punto de Venta</p>
+<div class="login-layout">
+    <!-- Left Panel: Branding (Matches Sidebar/Header) -->
+    <div class="brand-panel">
+        <div class="brand-content">
+            <div class="brand-logo">
+                <i class="bi bi-layers-fill"></i>
+            </div>
+            <h1><strong>STACK</strong> POS</h1>
+            <p class="subtitle">Professional Point of Sale</p>
+            
+            <div class="brand-features">
+                <div class="feature-item">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <span>Fast & Reliable</span>
+                </div>
+                <div class="feature-item">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <span>Secure Access</span>
+                </div>
+                <div class="feature-item">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <span>Real-time Sync</span>
+                </div>
+            </div>
         </div>
         
-        @if (!string.IsNullOrEmpty(errorMessage))
-        {
-            <div class="alert alert-danger">
-                <span class="alert-icon">⚠️</span>
-                @errorMessage
-            </div>
-        }
+        <div class="brand-footer">
+            <p>&copy; @DateTime.Now.Year StackPos Systems</p>
+        </div>
+    </div>
 
-        <EditForm Model="@loginModel" OnValidSubmit="HandleLogin" FormName="LoginForm">
-            <DataAnnotationsValidator />
+    <!-- Right Panel: Login Form (Matches Main Content) -->
+    <div class="form-panel">
+        <div class="login-card">
+            <div class="card-header">
+                <h2>Bienvenido</h2>
+                <p>Por favor, inicia sesión para continuar</p>
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <span>@errorMessage</span>
+                </div>
+            }
+
+            <EditForm Model="@loginModel" OnValidSubmit="HandleLogin" FormName="LoginForm">
+                <DataAnnotationsValidator />
+                
+                <div class="form-group">
+                    <label for="username">Usuario</label>
+                    <div class="input-wrapper">
+                        <i class="bi bi-person"></i>
+                        <InputText id="username" 
+                                  class="form-control" 
+                                  @bind-Value="loginModel.Username" 
+                                  placeholder="Ej: admin"
+                                  autocomplete="username" />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Contraseña</label>
+                    <div class="input-wrapper">
+                        <i class="bi bi-lock"></i>
+                        <InputText id="password" 
+                                  type="password" 
+                                  class="form-control" 
+                                  @bind-Value="loginModel.Password" 
+                                  placeholder="••••••••"
+                                  autocomplete="current-password" />
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-login" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        <span>Verificando...</span>
+                    }
+                    else
+                    {
+                        <span>INICIAR SESIÓN</span>
+                    }
+                </button>
+            </EditForm>
             
-            <div class="form-group">
-                <label for="username" class="form-label">
-                    <span class="label-icon">👤</span>
-                    Usuario
-                </label>
-                <InputText id="username" 
-                          class="form-input" 
-                          @bind-Value="loginModel.Username" 
-                          placeholder="Ingresa tu usuario"
-                          autocomplete="username" />
-                <ValidationMessage For="@(() => loginModel.Username)" class="validation-message" />
+            <div class="login-help">
+                <p class="text-muted">¿Problemas para acceder? Contacta al administrador.</p>
+                <div class="default-creds">
+                    <small>Default: <strong>admin</strong> / <strong>admin123</strong></small>
+                </div>
             </div>
-
-            <div class="form-group">
-                <label for="password" class="form-label">
-                    <span class="label-icon">🔒</span>
-                    Contraseña
-                </label>
-                <InputText id="password" 
-                          type="password" 
-                          class="form-input" 
-                          @bind-Value="loginModel.Password" 
-                          placeholder="Ingresa tu contraseña"
-                          autocomplete="current-password" />
-                <ValidationMessage For="@(() => loginModel.Password)" class="validation-message" />
-            </div>
-
-            <button type="submit" class="btn-login" disabled="@isLoading">
-                @if (isLoading)
-                {
-                    <span class="spinner"></span>
-                    <span>Iniciando sesión...</span>
-                }
-                else
-                {
-                    <span>Iniciar Sesión</span>
-                }
-            </button>
-        </EditForm>
-
-        <div class="login-footer">
-            <p class="hint">💡 Usuario por defecto: <strong>admin</strong> / <strong>admin123</strong></p>
         </div>
     </div>
 </div>
 
 <style>
-    .login-container {
-        min-height: 100vh;
+    :root {
+        --brand-bg: #2C3E50;       /* Dark Blue from Header */
+        --content-bg: #F4F6F8;     /* Light Gray from Main */
+        --accent-color: #3498DB;   /* Blue Accent */
+        --text-dark: #2c3e50;
+    }
+
+    .login-layout {
+        display: flex;
+        height: 100vh;
+        width: 100%;
+        overflow: hidden;
+    }
+
+    /* LEFT SCREEN: Brand Panel */
+    .brand-panel {
+        flex: 1;
+        background-color: var(--brand-bg);
+        color: white;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 40px;
+        position: relative;
+        /* Subtle pattern for texture */
+        background-image: radial-gradient(rgba(255,255,255,0.1) 1px, transparent 1px);
+        background-size: 30px 30px;
+    }
+
+    .brand-content {
+        text-align: center;
+        max-width: 400px;
+    }
+
+    .brand-logo {
+        font-size: 5rem;
+        color: var(--accent-color);
+        margin-bottom: 20px;
+        text-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+
+    .brand-panel h1 {
+        font-size: 3.5rem;
+        margin: 0;
+        font-weight: 300;
+        letter-spacing: 2px;
+    }
+    
+    .brand-panel h1 strong {
+        font-weight: 800;
+    }
+
+    .subtitle {
+        font-size: 1.2rem;
+        color: #bdc3c7;
+        margin-top: 10px;
+        margin-bottom: 40px;
+        font-weight: 300;
+    }
+
+    .brand-features {
+        text-align: left;
+        display: inline-block;
+        margin-top: 40px;
+    }
+
+    .feature-item {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 15px;
+        font-size: 1.1rem;
+        color: #ecf0f1;
+    }
+
+    .feature-item i {
+        color: #27ae60; /* Success green */
+    }
+
+    .brand-footer {
+        position: absolute;
+        bottom: 20px;
+        font-size: 0.9rem;
+        color: #7f8c8d;
+    }
+
+    /* RIGHT SCREEN: Form Panel */
+    .form-panel {
+        flex: 1;
+        background-color: var(--content-bg);
         display: flex;
         align-items: center;
         justify-content: center;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 20px;
     }
 
     .login-card {
         background: white;
-        border-radius: 20px;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        padding: 40px;
+        padding: 50px 40px;
+        border-radius: 16px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.08); /* Soft shadow */
         width: 100%;
-        max-width: 420px;
-        animation: slideUp 0.5s ease-out;
+        max-width: 450px;
     }
 
-    @@keyframes slideUp {
-        from {
-            opacity: 0;
-            transform: translateY(30px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    .login-header {
-        text-align: center;
+    .card-header {
+        text-align: left;
         margin-bottom: 30px;
     }
 
-    .logo {
-        font-size: 60px;
+    .card-header h2 {
+        font-size: 2rem;
+        color: var(--text-dark);
         margin-bottom: 10px;
-        animation: bounce 1s ease-in-out infinite;
-    }
-
-    @@keyframes bounce {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-10px); }
-    }
-
-    .login-header h1 {
-        font-size: 32px;
         font-weight: 700;
-        color: #2d3748;
-        margin: 10px 0 5px 0;
     }
 
-    .subtitle {
-        color: #718096;
-        font-size: 14px;
-        margin: 0;
+    .card-header p {
+        color: #7f8c8d;
+        font-size: 1rem;
     }
 
-    .alert {
-        padding: 12px 16px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        animation: shake 0.5s;
-    }
-
-    .alert-danger {
-        background: #fee;
-        color: #c33;
-        border: 1px solid #fcc;
-    }
-
-    @@keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        25% { transform: translateX(-10px); }
-        75% { transform: translateX(10px); }
-    }
-
-    .alert-icon {
-        font-size: 20px;
-    }
-
+    /* Form Styles */
     .form-group {
-        margin-bottom: 20px;
+        margin-bottom: 25px;
     }
 
-    .form-label {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 600;
-        color: #2d3748;
-        margin-bottom: 8px;
-        font-size: 14px;
-    }
-
-    .label-icon {
-        font-size: 16px;
-    }
-
-    .form-input {
-        width: 100%;
-        padding: 12px 16px;
-        border: 2px solid #e2e8f0;
-        border-radius: 10px;
-        font-size: 15px;
-        transition: all 0.3s;
-        background: #f7fafc;
-    }
-
-    .form-input:focus {
-        outline: none;
-        border-color: #667eea;
-        background: white;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
-
-    .validation-message {
-        color: #e53e3e;
-        font-size: 12px;
-        margin-top: 4px;
+    .form-group label {
         display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: var(--text-dark);
+        font-size: 0.95rem;
+    }
+
+    .input-wrapper {
+        position: relative;
+    }
+
+    .input-wrapper i {
+        position: absolute;
+        left: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #95a5a6;
+        font-size: 1.2rem;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 14px 16px 14px 50px;
+        border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        font-size: 1rem;
+        transition: all 0.2s;
+        background-color: #fafafa;
+    }
+
+    .form-control:focus {
+        border-color: var(--accent-color);
+        background-color: white;
+        outline: none;
+        box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.1);
     }
 
     .btn-login {
         width: 100%;
-        padding: 14px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 16px;
+        background: var(--accent-color);
         color: white;
         border: none;
-        border-radius: 10px;
-        font-size: 16px;
-        font-weight: 600;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        font-weight: 700;
         cursor: pointer;
-        transition: all 0.3s;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
+        transition: all 0.2s;
         margin-top: 10px;
     }
 
     .btn-login:hover:not(:disabled) {
+        background: #2980b9;
         transform: translateY(-2px);
-        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
-    }
-
-    .btn-login:active:not(:disabled) {
-        transform: translateY(0);
+        box-shadow: 0 8px 15px rgba(52, 152, 219, 0.25);
     }
 
     .btn-login:disabled {
         opacity: 0.7;
-        cursor: not-allowed;
+        cursor: wait;
     }
 
-    .spinner {
-        width: 16px;
-        height: 16px;
-        border: 2px solid rgba(255, 255, 255, 0.3);
-        border-top-color: white;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-    }
-
-    @@keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-
-    .login-footer {
-        margin-top: 24px;
+    /* Help & Footer */
+    .login-help {
+        margin-top: 30px;
         text-align: center;
+        border-top: 1px solid #f0f0f0;
+        padding-top: 20px;
     }
 
-    .hint {
-        color: #718096;
-        font-size: 13px;
-        background: #f7fafc;
-        padding: 12px;
-        border-radius: 8px;
-        margin: 0;
+    .text-muted {
+        color: #95a5a6;
+        font-size: 0.9rem;
     }
 
-    .hint strong {
-        color: #667eea;
+    .default-creds {
+        margin-top: 10px;
+        display: inline-block;
+        background: #fff3cd;
+        color: #856404;
+        padding: 5px 10px;
+        border-radius: 6px;
+        font-size: 0.85rem;
     }
 
-    @@media (max-width: 480px) {
-        .login-card {
-            padding: 30px 24px;
+    .alert {
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 25px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background-color: #fee2e2;
+        color: #dc2626;
+        border: 1px solid #fecaca;
+    }
+
+    /* Mobile Responsive */
+    @@media (max-width: 900px) {
+        .login-layout {
+            flex-direction: column;
+        }
+
+        .brand-panel {
+            padding: 20px;
+            flex: 0 0 auto;
+        }
+
+        .brand-logo {
+            font-size: 3rem;
+            margin-bottom: 10px;
         }
         
-        .login-header h1 {
-            font-size: 28px;
+        .brand-panel h1 {
+            font-size: 2rem;
+        }
+        
+        .subtitle {
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+        
+        .brand-features, .brand-footer {
+            display: none;
+        }
+
+        .form-panel {
+            flex: 1;
+            padding: 20px;
+            background: white; /* Clean look on mobile */
+        }
+        
+        .login-card {
+            box-shadow: none;
+            padding: 0;
         }
     }
 </style>
@@ -292,33 +392,17 @@
         if (firstRender && !hasCheckedAuth)
         {
             hasCheckedAuth = true;
-
             try
             {
-                await JS.InvokeVoidAsync("console.log", "🔑 Login Page: Verificando si el usuario ya está autenticado...");
-
-                // Verificar que estamos en la página de login antes de redirigir
-                var currentUri = NavigationManager.Uri;
-                if (!currentUri.Contains("/login"))
-                {
-                    await JS.InvokeVoidAsync("console.log", "🔑 Login Page: No estamos en /login, saltando verificación.");
-                    return;
-                }
-
                 var authState = await AuthStateProvider.GetAuthenticationStateAsync();
                 if (authState.User.Identity?.IsAuthenticated == true)
                 {
-                    await JS.InvokeVoidAsync("console.log", "🔑 Login Page: Usuario YA autenticado. Redirigiendo a Home...");
                     NavigationManager.NavigateTo("/", replace: true);
-                }
-                else
-                {
-                    await JS.InvokeVoidAsync("console.log", "🔑 Login Page: Usuario NO autenticado. Mostrando formulario de login.");
                 }
             }
             catch (Exception ex)
             {
-                await JS.InvokeVoidAsync("console.error", $"🔑 Login Page: Error verificando auth: {ex.Message}");
+                Console.WriteLine($"Auth Check Error: {ex.Message}");
             }
         }
     }
@@ -328,31 +412,15 @@
         isLoading = true;
         errorMessage = null;
 
-        await JS.InvokeVoidAsync("console.log", $"🔑 Login: Intentando login con usuario {loginModel.Username}");
         var success = await AuthService.Login(loginModel.Username, loginModel.Password);
 
         if (success)
         {
-            await JS.InvokeVoidAsync("console.log", "🔑 Login: Exitoso. Verificando persistencia...");
-            
-            // Verificar si el token se guardó realmente
-            var token = await LocalStorage.GetItemAsync<string>("authToken");
-            if (!string.IsNullOrEmpty(token))
-            {
-                await JS.InvokeVoidAsync("console.log", "🔑 Login: VERIFICADO - Token existe en LocalStorage.");
-                await JS.InvokeVoidAsync("console.log", $"🔑 Login: Token (primeros 10 chars): {token.Substring(0, Math.Min(10, token.Length))}...");
-                NavigationManager.NavigateTo("/");
-            }
-            else
-            {
-                await JS.InvokeVoidAsync("console.error", "🔑 Login: ERROR - El token NO se guardó en LocalStorage a pesar de Login exitoso.");
-                errorMessage = "Error de sistema: No se pudo guardar la sesión.";
-            }
+             NavigationManager.NavigateTo("/");
         }
         else
         {
-            await JS.InvokeVoidAsync("console.log", "🔑 Login: Fallido");
-            errorMessage = "Usuario o contraseña incorrectos";
+            errorMessage = "Credenciales incorrectas. Intenta nuevamente.";
         }
 
         isLoading = false;

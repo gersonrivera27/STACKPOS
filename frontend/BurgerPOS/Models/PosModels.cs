@@ -18,6 +18,24 @@ public class Category
     public DateTime CreatedAt { get; set; }
 }
 
+public class CategoryCreate
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+}
+
+public class CategoryUpdate
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+}
+
 // ==================== CUSTOMER ====================
 public class Customer
 {
@@ -149,6 +167,54 @@ public class Product
     public DateTime CreatedAt { get; set; }
 }
 
+public class ProductCreate
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("category_id")]
+    public int CategoryId { get; set; }
+
+    [JsonPropertyName("price")]
+    public decimal Price { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("image_url")]
+    public string? ImageUrl { get; set; }
+
+    [JsonPropertyName("is_available")]
+    public bool IsAvailable { get; set; } = true;
+
+    [JsonPropertyName("sort_order")]
+    public int SortOrder { get; set; } = 0;
+}
+
+public class ProductUpdate
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("category_id")]
+    public int? CategoryId { get; set; }
+
+    [JsonPropertyName("price")]
+    public decimal? Price { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("image_url")]
+    public string? ImageUrl { get; set; }
+
+    [JsonPropertyName("is_available")]
+    public bool? IsAvailable { get; set; }
+
+    [JsonPropertyName("sort_order")]
+    public int? SortOrder { get; set; }
+}
+
 // ==================== ORDER ====================
 public class Order
 {
@@ -187,6 +253,18 @@ public class Order
     
     [JsonPropertyName("created_at")]
     public DateTime CreatedAt { get; set; }
+
+    [JsonPropertyName("completed_at")]
+    public DateTime? CompletedAt { get; set; }
+
+    [JsonPropertyName("user_id")]
+    public int? UserId { get; set; }
+
+    [JsonPropertyName("waiter_name")]
+    public string? WaiterName { get; set; }
+
+    [JsonPropertyName("table_id")]
+    public int? TableId { get; set; }
 }
 
 // ==================== HEALTH CHECK ====================
@@ -240,6 +318,9 @@ public class OrderCreate
     
     [JsonPropertyName("table_id")]
     public int? TableId { get; set; }
+
+    [JsonPropertyName("user_id")]
+    public int? UserId { get; set; }
     
     [JsonPropertyName("payment_method")]
     public string? PaymentMethod { get; set; }
@@ -276,10 +357,147 @@ public class OrderItem
     
     [JsonPropertyName("product_name")]
     public string? ProductName { get; set; }
+
+    [JsonPropertyName("modifiers")]
+    public List<OrderItemModifier> Modifiers { get; set; } = new();
+}
+
+public class OrderItemModifier
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+    
+    [JsonPropertyName("modifier_id")]
+    public int ModifierId { get; set; }
+    
+    [JsonPropertyName("modifier_name")]
+    public string ModifierName { get; set; } = "";
+    
+    [JsonPropertyName("additional_price")]
+    public decimal AdditionalPrice { get; set; }
 }
 
 public class OrderWithDetails : Order
 {
     [JsonPropertyName("items")]
     public List<OrderItem> Items { get; set; } = new();
+}
+
+// ==================== PAYMENT ====================
+public class PaymentCreate
+{
+    [JsonPropertyName("order_id")]
+    public int OrderId { get; set; }
+    
+    [JsonPropertyName("payment_type")]
+    public string PaymentType { get; set; } = "cash";
+    
+    [JsonPropertyName("cash_amount")]
+    public decimal CashAmount { get; set; }
+    
+    [JsonPropertyName("card_amount")]
+    public decimal CardAmount { get; set; }
+    
+    [JsonPropertyName("tip_amount")]
+    public decimal TipAmount { get; set; }
+}
+
+public class PaymentResponse
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+    
+    [JsonPropertyName("order_id")]
+    public int OrderId { get; set; }
+    
+    [JsonPropertyName("payment_type")]
+    public string PaymentType { get; set; } = "cash";
+    
+    [JsonPropertyName("total_amount")]
+    public decimal TotalAmount { get; set; }
+    
+    [JsonPropertyName("cash_amount")]
+    public decimal CashAmount { get; set; }
+    
+    [JsonPropertyName("card_amount")]
+    public decimal CardAmount { get; set; }
+    
+    [JsonPropertyName("tip_amount")]
+    public decimal TipAmount { get; set; }
+    
+    [JsonPropertyName("change_amount")]
+    public decimal ChangeAmount { get; set; }
+    
+    [JsonPropertyName("created_at")]
+    public DateTime CreatedAt { get; set; }
+}
+
+// ==================== CASH SESSION ====================
+public class CashSessionCreate
+{
+    [JsonPropertyName("opening_amount")]
+    public decimal OpeningAmount { get; set; }
+    
+    [JsonPropertyName("user_id")]
+    public int UserId { get; set; }
+    
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+}
+
+public class CashSessionClose
+{
+    [JsonPropertyName("closing_amount")]
+    public decimal ClosingAmount { get; set; }
+    
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
+}
+
+public class CashSession
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+    
+    [JsonPropertyName("user_id")]
+    public int UserId { get; set; }
+    
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = "open";
+    
+    [JsonPropertyName("opening_amount")]
+    public decimal OpeningAmount { get; set; }
+    
+    [JsonPropertyName("closing_amount")]
+    public decimal? ClosingAmount { get; set; }
+    
+    [JsonPropertyName("expected_amount")]
+    public decimal? ExpectedAmount { get; set; }
+    
+    [JsonPropertyName("difference")]
+    public decimal? Difference { get; set; }
+    
+    [JsonPropertyName("total_cash_sales")]
+    public decimal TotalCashSales { get; set; }
+    
+    [JsonPropertyName("total_card_sales")]
+    public decimal TotalCardSales { get; set; }
+    
+    [JsonPropertyName("total_sales")]
+    public decimal TotalSales { get; set; }
+    
+    [JsonPropertyName("total_tips")]
+    public decimal TotalTips { get; set; }
+    
+    [JsonPropertyName("orders_count")]
+    public int OrdersCount { get; set; }
+    
+    [JsonPropertyName("opened_at")]
+    public DateTime OpenedAt { get; set; }
+    
+    [JsonPropertyName("closed_at")]
+    public DateTime? ClosedAt { get; set; }
+    
+    [JsonPropertyName("notes")]
+    public string? Notes { get; set; }
 }

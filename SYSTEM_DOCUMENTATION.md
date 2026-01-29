@@ -284,15 +284,29 @@ sequenceDiagram
 - `POST /api/customers` - Create customer
 - `PUT /api/customers/{id}` - Update customer
 
-**Products:**
+**Products & Categories:**
 - `GET /api/products` - List products
 - `GET /api/categories` - List categories
 
 **Orders:**
-- `GET /api/orders` - List orders (filtered by status)
-- `GET /api/orders/{id}` - Get order details
-- `POST /api/orders` - Create order
+- `GET /api/orders` - List orders (filter by status, order_type)
+- `GET /api/orders/{id}` - Get order with items
+- `POST /api/orders` - Create order with items
 - `PATCH /api/orders/{id}/status` - Update order status
+
+**Tables:**
+- `GET /api/tables` - List tables (filter by status)
+- `POST /api/tables` - Create table
+- `PATCH /api/tables/{id}/status` - Update table status
+
+**Modifiers:**
+- `GET /api/modifiers` - List product modifiers
+- `POST /api/modifiers` - Create modifier
+
+**Reports:**
+- `GET /api/reports/daily-sales` - Daily sales summary
+- `GET /api/reports/top-products` - Best selling products
+- `GET /api/reports/revenue-by-period` - Revenue breakdown (day/week/month)
 
 ---
 
@@ -600,6 +614,9 @@ Local Services for:
 - [x] Print preview system
 - [x] Google Maps integration (address lookup)
 - [x] Responsive "Industrial" UI theme
+- [x] Sales reports & analytics (daily, top products, revenue)
+- [x] Table management (basic CRUD)
+- [x] Product modifiers system
 
 ### 12.2 In Progress 🔄
 
@@ -611,11 +628,9 @@ Local Services for:
 ### 12.3 Planned 📋
 
 - [ ] Inventory management
-- [ ] Sales reports & analytics
 - [ ] Multi-location support
 - [ ] Online ordering (customer-facing)
 - [ ] Loyalty program
-- [ ] Table management (dine-in)
 
 ---
 

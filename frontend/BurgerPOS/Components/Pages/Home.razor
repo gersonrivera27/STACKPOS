@@ -35,9 +35,7 @@
             </div>
         </div>
 
-        <button class="btn-logout">
-            <i class="bi bi-power"></i> Salir
-        </button>
+            
     </header>
 
     <!-- 2. Main Content -->
@@ -74,7 +72,7 @@
 
         <!-- Sidebar -->
         <aside class="pos-sidebar">
-            <button class="btn-takeaway" @onclick="@(() => OpenCustomerModal(0, "takeout"))">
+            <button class="btn-takeaway" @onclick="@(() => Navigation.NavigateTo("/order/0/takeout/0"))">
                 <i class="bi bi-person-walking takeaway-icon"></i>
                 <span class="takeaway-text">TAKE AWAY</span>
                 <span class="takeaway-sub">Venta Rápida</span>
@@ -120,7 +118,7 @@
                 <span class="key-label">MESAS</span>
             </button>
             
-            <button class="action-key">
+            <button class="action-key" @onclick="@(() => Navigation.NavigateTo("/caja"))">
                 <span class="key-hint">F5</span>
                 <span class="key-label">CAJA</span>
             </button>
@@ -130,9 +128,9 @@
                 <span class="key-label">CLIENTES</span>
             </button>
             
-            <button class="action-key">
+            <button class="action-key" @onclick="@(() => Navigation.NavigateTo("/cocina"))">
                 <span class="key-hint">F7</span>
-                <span class="key-label">REPORTES</span>
+                <span class="key-label">COCINA</span>
             </button>
             
             <button class="action-key">

@@ -1,0 +1,333 @@
+@page "/cocina"
+@rendermode InteractiveServer
+@using BurgerPOS.Models
+@using BurgerPOS.Services
+@inject PosApiService ApiService
+@inject NavigationManager Navigation
+@inject ILogger<Kitchen> Logger
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<div class="pos-layout">
+    <!-- Header compartido pero adaptado -->
+    <header class="pos-header">
+        <div class="brand">
+            <div class="brand-icon"></div>
+            <span class="brand-name"><strong>STACK</strong> KITCHEN</span>
+        </div>
+        
+        <div class="header-info">
+            <div class="info-pill @(ordersPending.Count > 5 ? "badge-danger" : "")">
+                <i class="bi bi-bell-fill icon"></i>
+                <span class="text">Pendientes: <strong>@ordersPending.Count</strong></span>
+            </div>
+            <div class="info-pill">
+                <i class="bi bi-fire icon"></i>
+                <span class="text">Preparando: <strong>@ordersPreparing.Count</strong></span>
+            </div>
+        </div>
+
+        <div style="display:flex; gap: 10px;">
+             <span class="text-muted" style="align-self: center; font-size: 0.9em;">Actualizado: @lastUpdated.ToString("HH:mm:ss")</span>
+            <button class="btn-logout" @onclick="GoHome" style="background-color: var(--secondary-color);">
+                <i class="bi bi-house-door-fill"></i> HOME
+            </button>
+        </div>
+    </header>
+
+    <main class="pos-main" style="grid-template-columns: 1fr;"> <!-- Override grid to full width -->
+        
+        @if (isLoading && !ordersPending.Any() && !ordersPreparing.Any())
+        {
+            <div class="kitchen-loading">
+                <div class="spinner"></div>
+                <p>Cargando órdenes...</p>
+            </div>
+        }
+        else
+        {
+            <div class="kitchen-board">
+                <!-- Columna Pendientes -->
+                <div class="kanban-column pending-col">
+                    <div class="column-header">
+                        <h2>🔔 PENDIENTES</h2>
+                    </div>
+                    <div class="column-content">
+                        @if (ordersPending.Any())
+                        {
+                            @foreach (var order in ordersPending)
+                            {
+                                <div class="kitchen-card pending">
+                                    <div class="card-header">
+                                        <span class="order-id">#@order.OrderNumber</span>
+                                        <span class="order-time">@GetTimeElapsed(order.CreatedAt)</span>
+                                    </div>
+                                    <div class="card-type">
+                                        <span class="badge @GetBadgeClass(order.OrderType)">
+                                            @GetOrderTypeLabel(order.OrderType)
+                                            @(order.TableId.HasValue ? $" #{order.TableId}" : "")
+                                        </span>
+                                        <div class="card-meta">
+                                            @if(!string.IsNullOrEmpty(order.WaiterName)) {
+                                                <span class="waiter">👤 @order.WaiterName</span>
+                                            }
+                                            <span class="today-customer">@order.CustomerName</span>
+                                        </div>
+                                    </div>
+                                    <div class="card-items">
+                                        @if(order is OrderWithDetails details)
+                                        {
+                                            @foreach (var item in details.Items)
+                                            {
+                                                <div class="order-item">
+                                                    <span class="qty">@item.Quantity</span>
+                                                    <span class="name">@item.ProductName</span>
+                                                    @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+                                                    {
+                                                        <div class="modifiers">⚠️ @item.SpecialInstructions</div>
+                                                    }
+                                                    @if(item.Modifiers != null && item.Modifiers.Any())
+                                                    {
+                                                        @foreach(var mod in item.Modifiers)
+                                                        {
+                                                            <div class="modifiers" style="background: #e3f2fd; color: #1976d2;">+ @mod.ModifierName</div>
+                                                        }
+                                                    }
+                                                </div>
+                                            }
+                                        }
+                                    </div>
+                                    <div class="card-actions">
+                                        <button class="btn-action start" @onclick="@(() => UpdateStatus(order.Id, "preparing"))">
+                                            🍳 EMPEZAR
+                                        </button>
+                                        <button class="btn-action print" title="Imprimir Comanda" @onclick="@(async () => await JSRuntime.InvokeVoidAsync("open", $"/print/receipt/{order.Id}", "_blank"))">
+                                            🖨️
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="empty-state">
+                                <i class="bi bi-check-circle"></i>
+                                <p>No hay órdenes pendientes</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Columna En Preparación -->
+                <div class="kanban-column preparing-col">
+                    <div class="column-header">
+                        <h2>🔥 EN PREPARACIÓN</h2>
+                    </div>
+                    <div class="column-content">
+                        @if (ordersPreparing.Any())
+                        {
+                            @foreach (var order in ordersPreparing)
+                            {
+                                <div class="kitchen-card preparing">
+                                    <div class="card-header">
+                                        <span class="order-id">#@order.OrderNumber</span>
+                                        <span class="order-time">@GetTimeElapsed(order.CreatedAt)</span>
+                                    </div>
+                                    <div class="card-type">
+                                        <span class="badge @GetBadgeClass(order.OrderType)">
+                                            @GetOrderTypeLabel(order.OrderType)
+                                        </span>
+                                        <span class="today-customer">@order.CustomerName</span>
+                                    </div>
+                                    <div class="card-items">
+                                        @if(order is OrderWithDetails details)
+                                        {
+                                            @foreach (var item in details.Items)
+                                            {
+                                                <div class="order-item">
+                                                    <span class="qty">@item.Quantity</span>
+                                                    <span class="name">@item.ProductName</span>
+                                                    @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+                                                    {
+                                                        <div class="modifiers">⚠️ @item.SpecialInstructions</div>
+                                                    }
+                                                    @if(item.Modifiers != null && item.Modifiers.Any())
+                                                    {
+                                                        @foreach(var mod in item.Modifiers)
+                                                        {
+                                                             <div class="modifiers" style="background: #e3f2fd; color: #1976d2;">+ @mod.ModifierName</div>
+                                                        }
+                                                    }
+                                                </div>
+                                            }
+                                        }
+                                    </div>
+                                    <div class="card-actions">
+                                        <button class="btn-action finish" @onclick="@(() => UpdateStatus(order.Id, "completed"))">
+                                            ✅ LISTO
+                                        </button>
+                                        <button class="btn-action print" title="Imprimir Comanda" @onclick="@(async () => await JSRuntime.InvokeVoidAsync("open", $"/print/receipt/{order.Id}", "_blank"))">
+                                            🖨️
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="empty-state">
+                                <i class="bi bi-fire"></i>
+                                <p>Nada en preparación</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+                
+                <!-- Columna Completados -->
+                <div class="kanban-column completed-col">
+                    <div class="column-header">
+                        <h2>✅ LISTOS (5)</h2>
+                    </div>
+                    <div class="column-content">
+                        @if (ordersCompleted.Any())
+                        {
+                            @foreach (var order in ordersCompleted)
+                            {
+                                <div class="kitchen-card completed">
+                                    <div class="card-header">
+                                        <span class="order-id">#@order.OrderNumber</span>
+                                        <span class="order-time" style="background: #e8f5e9; color: #2e7d32;">
+                                            Listo: @(order.CompletedAt?.ToString("HH:mm") ?? "-")
+                                        </span>
+                                    </div>
+                                    <div class="card-type">
+                                        <span class="today-customer">@order.CustomerName</span>
+                                    </div>
+                                    <div class="card-actions">
+                                        <button class="btn-action undo" @onclick="@(() => UpdateStatus(order.Id, "preparing"))">
+                                            ↩️ DESHACER
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </main>
+</div>
+
+@code {
+    private List<Order> ordersPending = new();
+    private List<Order> ordersPreparing = new();
+    private List<Order> ordersCompleted = new();
+    private bool isLoading = true;
+    private DateTime lastUpdated = DateTime.Now;
+    private System.Threading.Timer? timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrders();
+        // Refresh every 10s
+        timer = new System.Threading.Timer(async _ => 
+        {
+            await InvokeAsync(async () => 
+            {
+                await LoadOrders(false);
+                StateHasChanged();
+            });
+        }, null, 10000, 10000);
+    }
+
+    private async Task LoadOrders(bool showLoading = true)
+    {
+        if (showLoading) isLoading = true;
+        try
+        {
+            var p_orders = await ApiService.GetOrdersAsync("pending");
+            var prep_orders = await ApiService.GetOrdersAsync("preparing");
+            var comp_orders = await ApiService.GetOrdersAsync("completed"); 
+
+            ordersPending = await EnrichOrders(p_orders);
+            ordersPreparing = await EnrichOrders(prep_orders);
+            ordersCompleted = comp_orders.Take(5).ToList(); 
+
+            lastUpdated = DateTime.Now;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading kitchen orders");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task<List<Order>> EnrichOrders(List<Order> orders)
+    {
+        var enriched = new List<Order>();
+         // Optimize? Parallel fetch?
+        foreach (var o in orders)
+        {
+            var details = await ApiService.GetOrderAsync(o.Id);
+            if (details != null) enriched.Add(details);
+        }
+        return enriched;
+    }
+
+    private async Task UpdateStatus(int orderId, string newStatus)
+    {
+        try
+        {
+            await ApiService.UpdateOrderStatusAsync(orderId, newStatus);
+            await LoadOrders(false);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating order status");
+        }
+    }
+
+    private string GetTimeElapsed(DateTime createdAt)
+    {
+        var diff = DateTime.Now - createdAt;
+        if (diff.TotalMinutes < 60)
+            return $"{(int)diff.TotalMinutes}m";
+        return $"{(int)diff.TotalHours}h";
+    }
+
+    private string GetOrderTypeLabel(string type)
+    {
+        return type switch
+        {
+            "dine_in" => "MESA",
+            "takeout" => "LLEVAR",
+            "collection" => "RECOGER",
+            "delivery" => "DOMICILIO",
+            _ => type.ToUpper()
+        };
+    }
+    
+    private string GetBadgeClass(string type)
+    {
+        return type switch
+        {
+             "dine_in" => "badge-info", // need to check app.css badges or just use kitchen specific
+             "takeout" => "badge-success",
+             "delivery" => "badge-danger",
+             _ => "badge-warning"
+        };
+    }
+
+    public void Dispose()
+    {
+        timer?.Dispose();
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

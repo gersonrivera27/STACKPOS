@@ -1,13 +1,18 @@
+@page "/order/create"
 @page "/order/{CustomerId:int}/{OrderTypeStr}/{PhoneLine:int}"
 @rendermode InteractiveServer
 @using BurgerPOS.Models
 @using BurgerPOS.Services
+@using BurgerPOS.Components.Shared
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
 @inject PosApiService ApiService
 @inject NavigationManager Navigation
 @inject ILogger<OrderCreation> Logger
+@inject IJSRuntime JSRuntime
+@inject AuthenticationStateProvider AuthStateProvider
 
 <div class="order-creation-container">
-    <!-- Header -->
     <!-- Header -->
     <div class="order-header">
         <div class="brand">
@@ -112,7 +117,7 @@
                     ➖ QUITAR
                 </button>
                 <button class="action-btn" @onclick="() => { if(selectedCartItem != null) OpenCommentModal(selectedCartItem); }">
-                    � NOTA
+                     NOTA
                 </button>
                 <button class="action-btn btn-delete" @onclick="() => { if(selectedCartItem != null) RemoveFromCart(selectedCartItem); }">
                     🗑 BORRAR
@@ -141,6 +146,20 @@
                     PAGAR
                 </button>
             </div>
+            
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger" style="margin-top: 15px; background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px;">
+                    @errorMessage
+                </div>
+            }
+            
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <div class="alert alert-success" style="margin-top: 15px; background-color: #d4edda; color: #155724; padding: 10px; border-radius: 5px;">
+                    @successMessage
+                </div>
+            }
         </div>
     </div>
 </div>
@@ -182,10 +201,23 @@
     </div>
 }
 
+@* Payment Modal *@
+@if (showPaymentModal)
+{
+    <PaymentModal 
+        Subtotal="CalculateSubtotal()"
+        Tax="CalculateTax()"
+        Total="CalculateTotal()"
+        OrderId="pendingOrderId"
+        OnClose="ClosePaymentModal"
+        OnPaymentConfirmed="HandlePaymentConfirmed" />
+}
+
 @code {
     [Parameter] public int CustomerId { get; set; }
     [Parameter] public string OrderTypeStr { get; set; } = "takeout";
     [Parameter] public int PhoneLine { get; set; }
+    [SupplyParameterFromQuery] public int? TableId { get; set; }
 
     private Customer? customer;
     private List<Category> categories = new();
@@ -207,33 +239,74 @@
 
     private int ticketNumber;
 
+    // Payment modal state
+    private bool showPaymentModal = false;
+    private int pendingOrderId = 0;
+    
+    private int? currentUserId;
+
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            // Get Current User (Waiter)
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (user.Identity != null && user.Identity.IsAuthenticated)
+            {
+                var idClaim = user.FindFirst("sub") ?? user.FindFirst(ClaimTypes.NameIdentifier);
+                if (idClaim != null && int.TryParse(idClaim.Value, out int uid))
+                {
+                    currentUserId = uid;
+                    Logger.LogInformation("Usuario autenticado: {UserId}", currentUserId);
+                }
+            }
+
             // Generate ticket number once
             ticketNumber = new Random().Next(1000, 9999);
 
             Logger.LogInformation("Iniciando OrderCreation para Cliente {CustomerId}", CustomerId);
-
-            // Load customer
-            var customerList = await ApiService.GetCustomersAsync();
-            customer = customerList.FirstOrDefault(c => c.Id == CustomerId);
-
-            if (customer == null)
+            
+            // If TableId is present, force Dine In
+            if (TableId.HasValue)
             {
-                errorMessage = "Cliente no encontrado";
-                Logger.LogWarning("Cliente {CustomerId} no encontrado", CustomerId);
-                return;
+                OrderTypeStr = "dine_in";
+            }
+
+            if (CustomerId == 0)
+            {
+                // ... Existing Walk-In Logic ...
+                customer = new Customer
+                {
+                    Id = 0,
+                    Name = "Walk-In",
+                    Phone = "",
+                    AddressLine1 = "Local"
+                };
+            }
+            else
+            {
+                // ... Existing Customer Load ...
+                 var customerList = await ApiService.GetCustomersAsync();
+                customer = customerList.FirstOrDefault(c => c.Id == CustomerId);
+
+                if (customer == null)
+                {
+                    errorMessage = "Cliente no encontrado";
+                    Logger.LogWarning("Cliente {CustomerId} no encontrado", CustomerId);
+                    return;
+                }
             }
 
             // Load categories
             categories = await ApiService.GetCategoriesAsync();
-            Logger.LogInformation("Cargadas {Count} categorías", categories.Count);
+            // ...
+            
+            // Generate ticket number once
+            ticketNumber = new Random().Next(1000, 9999);
 
             // Load all products
             products = await ApiService.GetProductsAsync();
-            Logger.LogInformation("Cargados {Count} productos", products.Count);
 
             // Select first category by default
             if (categories.Any())
@@ -244,13 +317,17 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error cargando datos");
+             Logger.LogError(ex, "Error cargando datos");
             errorMessage = $"Error al cargar datos: {ex.Message}";
         }
     }
-
+    
+    // ... existing ... 
+    
     private string GetOrderTypeLabel()
     {
+        if (TableId.HasValue) return $"MESA #{TableId}"; 
+        
         return OrderTypeStr.ToLower() switch
         {
             "delivery" => "🚚 Delivery",
@@ -258,6 +335,207 @@
             "dine_in" => "🍽️ Comer Aquí",
             _ => OrderTypeStr
         };
+    }
+
+    private async Task SendToKitchen()
+    {
+        if (!cart.Any())
+        {
+            errorMessage = "El carrito está vacío!";
+            return;
+        }
+
+        if (customer == null)
+        {
+            errorMessage = "Cliente no encontrado";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = "";
+        successMessage = "";
+
+        try
+        {
+            Logger.LogInformation("Enviando a cocina para {CustomerName}", customer.Name);
+
+            var orderData = new OrderCreate
+            {
+                CustomerName = customer.Name,
+                OrderType = OrderTypeStr.ToLower(),
+                Items = cart.Select(item => new OrderItemCreate
+                {
+                    ProductId = item.ProductId,
+                    Quantity = item.Quantity,
+                    SpecialInstructions = item.SpecialInstructions
+                }).ToList(),
+                Notes = orderNotes,
+                TableId = TableId,
+                UserId = currentUserId,
+                PaymentMethod = null,
+                Status = "pending"
+            };
+
+            var createdOrder = await ApiService.CreateOrderAsync(orderData);
+
+            if (createdOrder != null)
+            {
+                Logger.LogInformation("Orden enviada a cocina: {OrderNumber}", createdOrder.OrderNumber);
+                successMessage = $"🍳 Orden {createdOrder.OrderNumber} enviada a cocina!";
+                StateHasChanged();
+                
+                await PrintKitchenTicket(createdOrder.Id);
+                
+                await Task.Delay(1500);
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                errorMessage = "Error al enviar a cocina. Por favor intenta de nuevo.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al enviar a cocina");
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    // ...
+
+    private async Task ConfirmOrder()
+    {
+        if (!cart.Any())
+        {
+            errorMessage = "El carrito está vacío!";
+            return;
+        }
+
+        if (customer == null)
+        {
+            errorMessage = "Cliente no encontrado";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = "";
+        successMessage = "";
+
+        try
+        {
+            Logger.LogInformation("Creando orden para pago: {CustomerName}", customer.Name);
+
+            // Primero crear la orden con estado "pending"
+            var orderData = new OrderCreate
+            {
+                CustomerName = customer.Name,
+                OrderType = OrderTypeStr.ToLower(),
+                Items = cart.Select(item => new OrderItemCreate
+                {
+                    ProductId = item.ProductId,
+                    Quantity = item.Quantity,
+                    SpecialInstructions = item.SpecialInstructions
+                }).ToList(),
+                Notes = orderNotes,
+                TableId = TableId,
+                UserId = currentUserId,
+                PaymentMethod = null,
+                Status = "pending"
+            };
+
+            var createdOrder = await ApiService.CreateOrderAsync(orderData);
+
+            if (createdOrder != null)
+            {
+                Logger.LogInformation("Orden creada: {OrderNumber}, abriendo modal de pago", createdOrder.OrderNumber);
+                pendingOrderId = createdOrder.Id;
+                showPaymentModal = true;
+            }
+            else
+            {
+                errorMessage = "Error al crear la orden. Por favor intenta de nuevo.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al crear orden para pago");
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ClosePaymentModal()
+    {
+        showPaymentModal = false;
+        pendingOrderId = 0;
+        StateHasChanged();
+    }
+
+    private async Task HandlePaymentConfirmed(PaymentModal.PaymentResult result)
+    {
+        try
+        {
+            Logger.LogInformation("Procesando pago para orden {OrderId}", result.OrderId);
+
+            var payment = new PaymentCreate
+            {
+                OrderId = result.OrderId,
+                PaymentType = result.PaymentType,
+                CashAmount = result.CashAmount,
+                CardAmount = result.CardAmount,
+                TipAmount = result.TipAmount
+            };
+
+            var paymentResponse = await ApiService.CreatePaymentAsync(payment);
+
+            if (paymentResponse != null)
+            {
+                Logger.LogInformation("Pago procesado exitosamente. Cambio: {Change}", paymentResponse.ChangeAmount);
+                
+                showPaymentModal = false;
+                
+                // Mostrar mensaje de éxito con el cambio si aplica
+                if (paymentResponse.ChangeAmount > 0)
+                {
+                    successMessage = $"✓ Pago exitoso! Cambio: €{paymentResponse.ChangeAmount:F2}";
+                }
+                else
+                {
+                    successMessage = "✓ Pago exitoso!";
+                }
+                
+                StateHasChanged();
+                
+                // Esperar y redirigir al inicio
+                await Task.Delay(2500);
+                Navigation.NavigateTo("/");
+            }
+            else
+            {
+                errorMessage = "Error al procesar el pago. Por favor intenta de nuevo.";
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error procesando pago");
+            errorMessage = $"Error: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    private void CancelOrder()
+    {
+        Navigation.NavigateTo("/");
     }
 
     private void SelectCategory(int categoryId)
@@ -277,35 +555,35 @@
     }
 
     private void AddToCart(Product product)
-{
-    // Busca si ya existe el mismo producto SIN modificadores
-    var existingItem = cart.FirstOrDefault(i => 
-        i.ProductId == product.Id && 
-        string.IsNullOrEmpty(i.SpecialInstructions));
+    {
+        // Busca si ya existe el mismo producto SIN modificadores
+        var existingItem = cart.FirstOrDefault(i => 
+            i.ProductId == product.Id && 
+            string.IsNullOrEmpty(i.SpecialInstructions));
 
-    if (existingItem != null)
-    {
-        // Si existe sin modificadores, aumenta la cantidad
-        existingItem.Quantity++;
-        selectedCartItem = existingItem;
-    }
-    else
-    {
-        // Si no existe o tiene modificadores, crea uno nuevo
-        var newItem = new CartItem
+        if (existingItem != null)
         {
-            ProductId = product.Id,
-            ProductName = product.Name,
-            UnitPrice = product.Price,
-            Quantity = 1
-        };
-        cart.Add(newItem);
-        selectedCartItem = newItem;
-    }
+            // Si existe sin modificadores, aumenta la cantidad
+            existingItem.Quantity++;
+            selectedCartItem = existingItem;
+        }
+        else
+        {
+            // Si no existe o tiene modificadores, crea uno nuevo
+            var newItem = new CartItem
+            {
+                ProductId = product.Id,
+                ProductName = product.Name,
+                UnitPrice = product.Price,
+                Quantity = 1
+            };
+            cart.Add(newItem);
+            selectedCartItem = newItem;
+        }
 
-    Logger.LogInformation("Item agregado: {ProductName}, Total items en carrito: {Count}", product.Name, cart.Count);
-    StateHasChanged();
-}
+        Logger.LogInformation("Item agregado: {ProductName}, Total items en carrito: {Count}", product.Name, cart.Count);
+        StateHasChanged();
+    }
 
     private void SelectCartItem(CartItem item)
     {
@@ -384,160 +662,35 @@
         CloseCommentModal();
     }
 
+    private decimal CalculateTotal()
+    {
+        // En modelo Tax Inclusive, el subtotal de cada item YA es el precio final
+        return cart.Sum(i => i.Subtotal);
+    }
+
     private decimal CalculateSubtotal()
     {
-        return cart.Sum(i => i.Subtotal);
+        // Subtotal = Total / 1.135
+        if (CalculateTotal() == 0) return 0;
+        return CalculateTotal() / 1.135m;
     }
 
     private decimal CalculateTax()
     {
-        return CalculateSubtotal() * 0.135m;
+        // Tax = Total - Subtotal
+        return CalculateTotal() - CalculateSubtotal();
     }
 
-    private decimal CalculateTotal()
+    private async Task PrintKitchenTicket(int orderId)
     {
-        return CalculateSubtotal() + CalculateTax();
-    }
-
-    private async Task SendToKitchen()
-{
-    if (!cart.Any())
-    {
-        errorMessage = "El carrito está vacío!";
-        return;
-    }
-
-    if (customer == null)
-    {
-        errorMessage = "Cliente no encontrado";
-        return;
-    }
-
-    isSubmitting = true;
-    errorMessage = "";
-    successMessage = "";
-
-    try
-    {
-        Logger.LogInformation("Enviando a cocina para {CustomerName}", customer.Name);
-
-        var orderData = new OrderCreate
-        {
-            CustomerName = customer.Name,
-            OrderType = OrderTypeStr.ToLower(),
-            Items = cart.Select(item => new OrderItemCreate
-            {
-                ProductId = item.ProductId,
-                Quantity = item.Quantity,
-                SpecialInstructions = item.SpecialInstructions
-            }).ToList(),
-            Notes = orderNotes,
-            TableId = null,
-            PaymentMethod = null,
-            Status = "preparing" // Send to Kitchen -> Preparing
-        };
-
-        var createdOrder = await ApiService.CreateOrderAsync(orderData);
-
-        if (createdOrder != null)
-        {
-            Logger.LogInformation("Orden enviada a cocina: {OrderNumber}", createdOrder.OrderNumber);
-            successMessage = $"Orden {createdOrder.OrderNumber} enviada a cocina! ✓";
-            
-            // Limpiar el carrito pero permanecer en la página
-            await Task.Delay(1500);
-            cart.Clear();
-            selectedCartItem = null;
-            orderNotes = "";
-            successMessage = "";
-            // Generate new ticket number for next order
-            ticketNumber = new Random().Next(1000, 9999);
-        }
-        else
-        {
-            errorMessage = "Error al enviar a cocina. Por favor intenta de nuevo.";
-        }
-    }
-    catch (Exception ex)
-    {
-        Logger.LogError(ex, "Error al enviar a cocina");
-        errorMessage = $"Error: {ex.Message}";
-    }
-    finally
-    {
-        isSubmitting = false;
-        StateHasChanged();
-    }
-}
-
-    private async Task ConfirmOrder()
-    {
-        if (!cart.Any())
-        {
-            errorMessage = "El carrito está vacío!";
-            return;
-        }
-
-        if (customer == null)
-        {
-            errorMessage = "Cliente no encontrado";
-            return;
-        }
-
-        isSubmitting = true;
-        errorMessage = "";
-        successMessage = "";
-
         try
         {
-            Logger.LogInformation("Confirmando orden para {CustomerName}", customer.Name);
-
-            var orderData = new OrderCreate
-            {
-                CustomerName = customer.Name,
-                OrderType = OrderTypeStr.ToLower(),
-                Items = cart.Select(item => new OrderItemCreate
-                {
-                    ProductId = item.ProductId,
-                    Quantity = item.Quantity,
-                    SpecialInstructions = item.SpecialInstructions
-                }).ToList(),
-                Notes = orderNotes,
-                TableId = null,
-                PaymentMethod = "cash", // Default to cash for now, or add selector
-                Status = "completed" // Confirm & Pay -> Completed
-            };
-
-            var createdOrder = await ApiService.CreateOrderAsync(orderData);
-
-            if (createdOrder != null)
-            {
-                Logger.LogInformation("Orden creada: {OrderNumber}", createdOrder.OrderNumber);
-                successMessage = $"Orden {createdOrder.OrderNumber} completada exitosamente!";
-                
-                // Wait 2 seconds and navigate back
-                await Task.Delay(2000);
-                Navigation.NavigateTo("/");
-            }
-            else
-            {
-                errorMessage = "Error al crear la orden. Por favor intenta de nuevo.";
-            }
+            var printUrl = $"/print/receipt/{orderId}";
+            await JSRuntime.InvokeVoidAsync("window.open", printUrl, "_blank", "width=400,height=600");
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error al confirmar orden");
-            errorMessage = $"Error: {ex.Message}";
+            Logger.LogWarning(ex, "No se pudo abrir ventana de impresión");
         }
-        finally
-        {
-            isSubmitting = false;
-            StateHasChanged();
-        }
-    }
-
-    private void CancelOrder()
-    {
-        Navigation.NavigateTo("/");
     }
 }

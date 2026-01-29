@@ -4,10 +4,10 @@ Sistema completo de login, perfil y verificación
 """
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Annotated
+from typing import Annotated, List
 
 from ..database import get_db
-from ..schemas.user import LoginRequest, LoginResponse, UsuarioResponse, User
+from ..schemas.user import LoginRequest, LoginResponse, UsuarioResponse, User, PinLoginRequest
 from ..security import (
     autenticar_usuario,
     crear_token,
@@ -107,8 +107,51 @@ async def verificar_token(
         }
     }
 
-# ============================================
-# ENDPOINT DE EJEMPLO: SOLO ADMIN
+@router.get("/users-list", response_model=List[UsuarioResponse])
+def listar_usuarios_login(conn = Depends(get_db)):
+    """Listar usuarios activos para selector de login (PIN)"""
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, email, full_name, role, is_active FROM users WHERE is_active = TRUE ORDER BY full_name")
+    users = cursor.fetchall()
+    return [
+        UsuarioResponse(
+            id=u['id'], username=u['username'], email=u['email'],
+            full_name=u['full_name'], role=u['role'], is_active=u['is_active']
+        ) for u in users
+    ]
+
+@router.post("/pin-login", response_model=LoginResponse)
+def login_con_pin(datos: PinLoginRequest, conn = Depends(get_db)):
+    """Login usando PIN"""
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = %s AND pin = %s AND is_active = TRUE", (datos.user_id, datos.pin))
+    usuario = cursor.fetchone()
+    
+    if not usuario:
+        return LoginResponse(
+            exito=False,
+            mensaje="PIN incorrecto"
+        )
+        
+    # Generar token
+    token = crear_token(usuario)
+    
+    usuario_response = UsuarioResponse(
+        id=usuario['id'],
+        username=usuario['username'],
+        email=usuario['email'],
+        full_name=usuario.get('full_name'),
+        role=usuario['role'],
+        is_active=usuario['is_active']
+    )
+    
+    return LoginResponse(
+        exito=True,
+        mensaje="Login exitoso",
+        token=token,
+        usuario=usuario_response
+    )
+
 # ============================================
 
 @router.get("/admin/test")

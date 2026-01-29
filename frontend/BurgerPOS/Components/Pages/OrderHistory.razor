@@ -2,10 +2,12 @@
 @rendermode InteractiveServer
 @using BurgerPOS.Models
 @using BurgerPOS.Services
+@using BurgerPOS.Components.Shared
 @inject PosApiService ApiService
 @inject NavigationManager Navigation
 @inject ILogger<OrderHistory> Logger
 @inject IJSRuntime JSRuntime
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthStateProvider
 
 <div class="order-history-container">
     <!-- 1. Top Bar: Controls & Filters -->
@@ -32,6 +34,14 @@
             <button class="btn-search" @onclick="LoadOrders">
                 🔍 BUSCAR
             </button>
+            
+            @if (isAdmin)
+            {
+                <div class="filter-item checkbox-item">
+                    <input type="checkbox" id="chkHistory" @bind="showHistory" />
+                    <label for="chkHistory">VER HISTORIAL COMPLETO</label>
+                </div>
+            }
         </div>
 
         <div class="action-group">
@@ -203,82 +213,16 @@
     </div>
 </div>
 
-<!-- Payment Modal -->
+@* Payment Modal - Usando componente compartido *@
 @if (showPaymentModal && selectedOrder != null)
 {
-    <div class="modal-overlay">
-        <div class="payment-modal">
-            <div class="payment-header">
-                <h2>PAGAR ORDEN #@selectedOrder.OrderNumber</h2>
-                <button class="btn-close-modal" @onclick="ClosePaymentModal">✕</button>
-            </div>
-            
-            <div class="payment-body">
-                <!-- Left: Methods -->
-                <div class="payment-methods">
-                    <button class="btn-method @(paymentMethod == "cash" ? "active" : "")" @onclick="@(() => SetMethod("cash"))">
-                        💵 EFECTIVO
-                    </button>
-                    <button class="btn-method @(paymentMethod == "card" ? "active" : "")" @onclick="@(() => SetMethod("card"))">
-                        💳 TARJETA
-                    </button>
-                    <button class="btn-method @(paymentMethod == "voucher" ? "active" : "")" @onclick="@(() => SetMethod("voucher"))">
-                        🎟️ VOUCHER
-                    </button>
-                </div>
-
-                <!-- Center: Numpad -->
-                <div class="payment-numpad">
-                    <div class="numpad-grid">
-                        <button @onclick="@(() => AddDigit("1"))">1</button>
-                        <button @onclick="@(() => AddDigit("2"))">2</button>
-                        <button @onclick="@(() => AddDigit("3"))">3</button>
-                        <button @onclick="@(() => AddDigit("4"))">4</button>
-                        <button @onclick="@(() => AddDigit("5"))">5</button>
-                        <button @onclick="@(() => AddDigit("6"))">6</button>
-                        <button @onclick="@(() => AddDigit("7"))">7</button>
-                        <button @onclick="@(() => AddDigit("8"))">8</button>
-                        <button @onclick="@(() => AddDigit("9"))">9</button>
-                        <button @onclick="@(() => AddDigit("."))">.</button>
-                        <button @onclick="@(() => AddDigit("0"))">0</button>
-                        <button @onclick="Backspace">⌫</button>
-                    </div>
-                </div>
-
-                <!-- Right: Summary -->
-                <div class="payment-summary">
-                    <div class="summary-row total">
-                        <label>TOTAL A PAGAR</label>
-                        <div class="amount">@selectedOrder.Total.ToString("F2")</div>
-                    </div>
-                    
-                    <div class="summary-row received">
-                        <label>RECIBIDO</label>
-                        <input type="text" value="@amountReceivedStr" readonly />
-                    </div>
-                    
-                    <div class="summary-row change">
-                        <label>CAMBIO</label>
-                        <div class="amount @(changeAmount < 0 ? "negative" : "positive")">
-                            @changeAmount.ToString("F2")
-                        </div>
-                    </div>
-
-                    <div class="quick-cash">
-                        <button @onclick="@(() => SetAmount(5))">£5</button>
-                        <button @onclick="@(() => SetAmount(10))">£10</button>
-                        <button @onclick="@(() => SetAmount(20))">£20</button>
-                        <button @onclick="@(() => SetAmount(50))">£50</button>
-                        <button @onclick="@(() => SetExactAmount())">EXACTO</button>
-                    </div>
-
-                    <button class="btn-process-payment" @onclick="ProcessPayment" disabled="@(changeAmount < 0)">
-                        CONFIRMAR PAGO
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+    <PaymentModal 
+        Subtotal="selectedOrder.Subtotal"
+        Tax="selectedOrder.Tax"
+        Total="selectedOrder.Total"
+        OrderId="selectedOrder.Id"
+        OnClose="ClosePaymentModal"
+        OnPaymentConfirmed="HandlePaymentConfirmed" />
 }
 
 @code {
@@ -293,13 +237,17 @@
 
     // Payment Modal
     private bool showPaymentModal = false;
-    private string paymentMethod = "cash";
-    private string amountReceivedStr = "0";
-    private decimal amountReceived = 0;
-    private decimal changeAmount = 0;
+
+    // Admin features
+    private bool isAdmin = false;
+    private bool showHistory = false;
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        isAdmin = user.Identity?.IsAuthenticated == true && user.IsInRole("admin");
+        
         await LoadOrders();
     }
 
@@ -308,7 +256,15 @@
         isLoading = true;
         try
         {
-            orders = await ApiService.GetOrdersAsync(status: string.IsNullOrEmpty(filterStatus) ? null : filterStatus);
+            // If showHistory is TRUE (and user is admin), ONLY_ACTIVE_SESSION is FALSE.
+            // If showHistory is FALSE, ONLY_ACTIVE_SESSION is TRUE.
+            // For non-admins, showHistory is always false.
+            bool onlyActive = !showHistory;
+            
+            orders = await ApiService.GetOrdersAsync(
+                status: string.IsNullOrEmpty(filterStatus) ? null : filterStatus,
+                activeSessionOnly: onlyActive
+            );
             
             if (!string.IsNullOrEmpty(searchId))
             {
@@ -362,11 +318,11 @@
         }
     }
 
-    private void PrintTicket()
+    private async Task PrintTicket()
     {
         if (selectedOrder != null)
         {
-            Navigation.NavigateTo($"/print-preview/{selectedOrder.Id}");
+            await JSRuntime.InvokeVoidAsync("open", $"/print/receipt/{selectedOrder.Id}", "_blank");
         }
     }
 
@@ -374,12 +330,7 @@
     private void OpenPaymentModal()
     {
         if (selectedOrder == null) return;
-        
         showPaymentModal = true;
-        paymentMethod = "cash";
-        amountReceivedStr = "0";
-        amountReceived = 0;
-        CalculateChange();
     }
 
     private void ClosePaymentModal()
@@ -387,93 +338,34 @@
         showPaymentModal = false;
     }
 
-    private void SetMethod(string method)
+    private async Task HandlePaymentConfirmed(PaymentModal.PaymentResult result)
     {
-        paymentMethod = method;
-    }
+        try
+        {
+            Logger.LogInformation("Procesando pago para orden {OrderId}", result.OrderId);
 
-    private void AddDigit(string digit)
-    {
-        if (amountReceivedStr == "0" && digit != ".")
-        {
-            amountReceivedStr = digit;
-        }
-        else
-        {
-            if (digit == "." && amountReceivedStr.Contains(".")) return;
-            amountReceivedStr += digit;
-        }
-        
-        if (decimal.TryParse(amountReceivedStr, out decimal result))
-        {
-            amountReceived = result;
-        }
-        CalculateChange();
-    }
-
-    private void Backspace()
-    {
-        if (amountReceivedStr.Length > 1)
-        {
-            amountReceivedStr = amountReceivedStr.Substring(0, amountReceivedStr.Length - 1);
-        }
-        else
-        {
-            amountReceivedStr = "0";
-        }
-        
-        if (decimal.TryParse(amountReceivedStr, out decimal result))
-        {
-            amountReceived = result;
-        }
-        CalculateChange();
-    }
-
-    private void SetAmount(decimal amount)
-    {
-        amountReceived = amount;
-        amountReceivedStr = amount.ToString();
-        CalculateChange();
-    }
-
-    private void SetExactAmount()
-    {
-        if (selectedOrder != null)
-        {
-            SetAmount(selectedOrder.Total);
-        }
-    }
-
-    private void CalculateChange()
-    {
-        if (selectedOrder != null)
-        {
-            changeAmount = amountReceived - selectedOrder.Total;
-        }
-    }
-
-    private async Task ProcessPayment()
-    {
-        if (selectedOrder == null) return;
-        
-        try 
-        {
-            // Update status to completed
-            var updatedOrder = await ApiService.UpdateOrderStatusAsync(selectedOrder.Id, "completed");
-            
-            if (updatedOrder != null)
+            var payment = new PaymentCreate
             {
-                Logger.LogInformation("Orden {Id} pagada y completada", selectedOrder.Id);
-                ClosePaymentModal();
+                OrderId = result.OrderId,
+                PaymentType = result.PaymentType,
+                CashAmount = result.CashAmount,
+                CardAmount = result.CardAmount,
+                TipAmount = result.TipAmount
+            };
+
+            var paymentResponse = await ApiService.CreatePaymentAsync(payment);
+
+            if (paymentResponse != null)
+            {
+                Logger.LogInformation("Pago procesado exitosamente. Cambio: {Change}", paymentResponse.ChangeAmount);
+                showPaymentModal = false;
                 await LoadOrders(); // Refresh list
-                
-                // Optional: Auto-print after payment
-                // await PrintTicket(); 
+                StateHasChanged();
             }
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
-             Logger.LogError(ex, "Error processing payment");
+            Logger.LogError(ex, "Error procesando pago");
         }
     }
 

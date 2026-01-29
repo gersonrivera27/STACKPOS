@@ -1,15 +1,9 @@
 services:
   frontend:
-    image: mcr.microsoft.com/dotnet/sdk:8.0
+    build:
+      context: ./frontend
+      dockerfile: BurgerPOS/Dockerfile.dev
     container_name: burger-frontend
-    working_dir: /app/BurgerPOS
-    volumes:
-      - ./frontend:/app
-      # 🔥 CRÍTICO: Excluir obj y bin para evitar deadlocks
-      - /app/BurgerPOS/obj
-      - /app/BurgerPOS/bin
-      - data-protection-keys:/root/.aspnet/DataProtection-Keys
-    command: sh -c "dotnet watch run --urls http://0.0.0.0:5000"
     ports:
       - "5001:5000"
     depends_on:
@@ -21,8 +15,9 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5000
       - API_URL=http://burger-backend:8000
-      - DOTNET_USE_POLLING_FILE_WATCHER=true
-      - DOTNET_WATCH_RESTART_ON_RUDE_EDIT=true
+    volumes:
+      - ./frontend:/app
+      - data-protection-keys:/root/.aspnet/DataProtection-Keys
 
   backend:
     image: python:3.11-slim

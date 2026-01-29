@@ -1,0 +1,260 @@
+@page "/admin/categories"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@using BurgerPOS.Models
+@using BurgerPOS.Services
+@inject PosApiService ApiService
+@inject NavigationManager Navigation
+@inject ILogger<Categories> Logger
+@inject IJSRuntime JS
+
+<div class="admin-container">
+    <div class="admin-header">
+        <div class="admin-title">
+            <h1><i class="bi bi-tags-fill"></i> Gestión de Categorías</h1>
+        </div>
+        <div class="admin-controls">
+            <button class="btn btn-primary" @onclick="ShowCreateModal">
+                <i class="bi bi-plus-lg"></i> Nueva Categoría
+            </button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else
+    {
+        <div class="products-table-container">
+            <table class="products-table">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Descripción</th>
+                        <th>Creada</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var category in categories)
+                    {
+                        <tr>
+                            <td><strong>@category.Name</strong></td>
+                            <td>@(category.Description ?? "-")</td>
+                            <td>@category.CreatedAt.ToString("g")</td>
+                            <td>
+                                <button class="action-btn btn-edit" @onclick="() => EditCategory(category)">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
+                                <button class="action-btn btn-delete" @onclick="() => DeleteCategory(category)">
+                                    <i class="bi bi-trash-fill"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@if (showModal)
+{
+    <div class="modal-backdrop" @onclick="CloseModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2>@(isEditing ? "Editar Categoría" : "Nueva Categoría")</h2>
+                <button class="close-btn" @onclick="CloseModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Nombre</label>
+                    <input type="text" class="form-control" @bind="currentCategory.Name" />
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Descripción</label>
+                    <textarea class="form-control" rows="3" @bind="currentCategory.Description"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModal">Cancelar</button>
+                <button class="btn btn-primary" @onclick="SaveCategory" disabled="@isSaving">
+                    @(isSaving ? "Guardando..." : "Guardar")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showDeleteModal)
+{
+    <div class="modal-backdrop" @onclick="CloseDeleteModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2>Confirmar Eliminación</h2>
+                <button class="close-btn" @onclick="CloseDeleteModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <p>¿Está seguro de querer eliminar la categoría <strong>@categoryToDelete?.Name</strong>?</p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Advertencia:</strong> Si esta categoría tiene productos asignados, no se podrá eliminar.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseDeleteModal">Cancelar</button>
+                <button class="btn btn-danger" @onclick="ConfirmDelete" disabled="@isDeleting">
+                    @(isDeleting ? "Eliminando..." : "Eliminar")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Category> categories = new();
+    private bool isLoading = true;
+    private bool showModal = false;
+    private bool showDeleteModal = false;
+    private bool isEditing = false;
+    private bool isSaving = false;
+    private bool isDeleting = false;
+    
+    // Model for form
+    private CategoryCreate currentCategory = new();
+    private Category? categoryToDelete = null;
+    private int editingId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try 
+        {
+            categories = await ApiService.GetCategoriesAsync();
+        }
+        catch(Exception ex)
+        {
+            Logger.LogError(ex, "Error loading categories");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ShowCreateModal()
+    {
+        currentCategory = new CategoryCreate();
+        editingId = 0;
+        isEditing = false;
+        showModal = true;
+    }
+
+    private void EditCategory(Category c)
+    {
+        currentCategory = new CategoryCreate
+        {
+            Name = c.Name,
+            Description = c.Description
+        };
+        editingId = c.Id;
+        isEditing = true;
+        showModal = true;
+    }
+
+    private void DeleteCategory(Category c)
+    {
+        categoryToDelete = c;
+        showDeleteModal = true;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (categoryToDelete == null) return;
+        
+        isDeleting = true;
+        try
+        {
+            var success = await ApiService.DeleteCategoryAsync(categoryToDelete.Id);
+            if (success)
+            {
+                showDeleteModal = false;
+                categoryToDelete = null;
+                await LoadData();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", "Error al eliminar la categoría. Verifique que no tenga productos asociados.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting category");
+            await JS.InvokeVoidAsync("alert", "Ocurrió un error al eliminar");
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        categoryToDelete = null;
+    }
+
+    private async Task SaveCategory()
+    {
+        if (string.IsNullOrWhiteSpace(currentCategory.Name))
+        {
+            await JS.InvokeVoidAsync("alert", "El nombre es obligatorio");
+            return;
+        }
+
+        isSaving = true;
+        try
+        {
+            if (isEditing)
+            {
+                var update = new CategoryUpdate
+                {
+                    Name = currentCategory.Name,
+                    Description = currentCategory.Description
+                };
+                await ApiService.UpdateCategoryAsync(editingId, update);
+            }
+            else
+            {
+                await ApiService.CreateCategoryAsync(currentCategory);
+            }
+
+            showModal = false;
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error guardando categoría");
+            await JS.InvokeVoidAsync("alert", "Error al guardar");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+    }
+}

@@ -16,37 +16,34 @@ class ProductRepository:
         cursor.execute("SELECT id FROM categories WHERE id = %s", (category_id,))
         return cursor.fetchone() is not None
 
-    def get_all(self, category_id: Optional[int] = None) -> List[dict]:
-        """Obtener todos los productos, opcionalmente filtrados por categoría"""
+    def get_all(self, category_id: Optional[int] = None, available_only: bool = True) -> List[dict]:
+        """Obtener todos los productos, opcionalmente filtrados por categoría y disponibilidad"""
         cursor = self.conn.cursor()
         
-        if category_id:
-            query = """
-                SELECT 
-                    p.id, p.name, p.category_id, p.price, 
-                    p.description, p.image_url, p.is_available, 
-                    p.created_at, p.updated_at,
-                    c.name as category_name
-                FROM products p
-                JOIN categories c ON p.category_id = c.id
-                WHERE p.is_available = TRUE AND p.category_id = %s
-                ORDER BY p.name
+        query_parts = [
             """
-            cursor.execute(query, (category_id,))
-        else:
-            query = """
-                SELECT 
-                    p.id, p.name, p.category_id, p.price, 
-                    p.description, p.image_url, p.is_available, 
-                    p.created_at, p.updated_at,
-                    c.name as category_name
-                FROM products p
-                JOIN categories c ON p.category_id = c.id
-                WHERE p.is_available = TRUE
-                ORDER BY p.name
+            SELECT 
+                p.id, p.name, p.category_id, p.price, 
+                p.description, p.image_url, p.is_available, 
+                p.created_at, p.updated_at,
+                c.name as category_name
+            FROM products p
+            JOIN categories c ON p.category_id = c.id
+            WHERE 1=1
             """
-            cursor.execute(query)
+        ]
+        params = []
         
+        if available_only:
+            query_parts.append("AND p.is_available = TRUE")
+            
+        if category_id:
+            query_parts.append("AND p.category_id = %s")
+            params.append(category_id)
+            
+        query_parts.append("ORDER BY p.name")
+        
+        cursor.execute(" ".join(query_parts), params)
         return cursor.fetchall()
 
     def get_by_id(self, product_id: int) -> Optional[dict]:

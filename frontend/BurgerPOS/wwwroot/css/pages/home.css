@@ -4,10 +4,10 @@
 /* Layout General */
 .pos-layout {
     display: grid;
-    grid-template-rows: 60px 1fr 70px;
-    /* Header - Main - Footer */
+    grid-template-rows: 60px 1fr auto;
+    /* Header - Main - Footer (auto height) */
     height: 100%;
-    /* Fit to parent (.page-content) */
+    /* Fit to parent container (.page-content) instead of viewport */
     width: 100%;
     background-color: var(--bg-app);
     font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -24,6 +24,7 @@
     padding: 0 20px;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     z-index: 10;
+    height: 60px;
 }
 
 .brand {
@@ -59,6 +60,7 @@
 .header-info {
     display: flex;
     gap: 20px;
+    align-items: center;
 }
 
 .info-pill {
@@ -69,6 +71,7 @@
     padding: 6px 12px;
     border-radius: 4px;
     font-size: 0.9rem;
+    white-space: nowrap;
 }
 
 .info-pill .icon {
@@ -94,6 +97,7 @@
     align-items: center;
     gap: 8px;
     transition: background 0.2s;
+    white-space: nowrap;
 }
 
 .btn-logout:hover {
@@ -107,7 +111,9 @@
     /* Lines Grid - Sidebar */
     padding: 15px;
     gap: 15px;
-    overflow: hidden;
+    overflow-y: auto;
+    /* Allow scrolling if content overflows */
+    height: 100%;
 }
 
 /* Lines Grid */
@@ -116,6 +122,8 @@
     grid-template-columns: repeat(2, 1fr);
     grid-template-rows: repeat(2, 1fr);
     gap: 15px;
+    height: 100%;
+    /* Fill parent height */
 }
 
 .line-card {
@@ -127,6 +135,9 @@
     padding: 15px;
     position: relative;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    height: 100%;
+    /* Fill grid cell */
+    justify-content: space-between;
 }
 
 .line-card.active {
@@ -155,6 +166,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    padding: 10px 0;
 }
 
 .line-icon {
@@ -167,7 +179,8 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
-    margin-top: 10px;
+    margin-top: auto;
+    /* Push to bottom */
 }
 
 .control-btn {
@@ -198,6 +211,7 @@
     display: flex;
     flex-direction: column;
     gap: 15px;
+    height: 100%;
 }
 
 .btn-takeaway {
@@ -213,6 +227,8 @@
     cursor: pointer;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     transition: transform 0.1s;
+    min-height: 150px;
+    /* Minimum height for mobile */
 }
 
 .btn-takeaway:active {
@@ -228,6 +244,7 @@
     font-size: 2rem;
     font-weight: 800;
     text-transform: uppercase;
+    text-align: center;
 }
 
 .takeaway-sub {
@@ -240,6 +257,8 @@
     border-radius: 8px;
     padding: 15px;
     color: var(--text-light);
+    margin-top: auto;
+    /* Push to bottom if sidebar is tall */
 }
 
 .status-row {
@@ -277,6 +296,9 @@
     background-color: #e0e0e0;
     padding: 5px 15px;
     border-top: 1px solid #ccc;
+    height: auto;
+    /* Allow expanding */
+    min-height: 70px;
 }
 
 .actions-bar {
@@ -299,6 +321,8 @@
     cursor: pointer;
     color: var(--text-main);
     transition: background 0.1s;
+    min-height: 60px;
+    padding: 4px;
 }
 
 .action-key:hover {
@@ -320,4 +344,137 @@
     font-weight: bold;
     font-size: 11px;
     margin-top: 5px;
+    text-align: center;
+    word-break: break-all;
+}
+
+
+/* ==========================================================================
+   RESPONSIVE MEDIA QUERIES
+   ========================================================================== */
+
+/* Tablet & Smaller Desktop (max-width: 1100px) */
+@media (max-width: 1100px) {
+    .pos-main {
+        grid-template-columns: 1fr;
+        /* Stack vertically */
+        grid-template-rows: 1fr auto;
+        /* Lines take available space, sidebar adjusts */
+        gap: 20px;
+    }
+
+    .pos-sidebar {
+        flex-direction: row;
+        /* Horizontal sidebar items */
+        height: auto;
+    }
+
+    .btn-takeaway {
+        flex: 1;
+        height: 100px;
+        /* Reduced height */
+        min-height: auto;
+        flex-direction: row;
+        gap: 15px;
+    }
+
+    .takeaway-icon {
+        font-size: 2.5rem;
+        margin-bottom: 0;
+    }
+
+    .takeaway-text {
+        font-size: 1.5rem;
+    }
+
+    .system-status {
+        flex: 1;
+        margin-top: 0;
+        display: flex;
+        flex-direction: row;
+        justify-content: space-around;
+        align-items: center;
+        gap: 15px;
+        padding: 10px;
+    }
+
+    .status-row {
+        border-bottom: none;
+        gap: 8px;
+        padding: 0;
+    }
+
+    .status-label {
+        font-size: 0.9rem;
+    }
+}
+
+/* Mobile Devices (max-width: 768px) */
+@media (max-width: 768px) {
+    .pos-header {
+        padding: 0 10px;
+    }
+
+    .brand-name {
+        font-size: 1.2rem;
+    }
+
+    .header-info {
+        gap: 10px;
+    }
+
+    .info-pill span.text {
+        display: none;
+        /* Hide Admin/Principal text on mobile */
+    }
+
+    .pos-main {
+        padding: 10px;
+        gap: 10px;
+        overflow-y: auto;
+    }
+
+    .lines-grid {
+        grid-template-columns: 1fr;
+        /* Single column */
+        grid-template-rows: auto;
+        /* Auto rows */
+    }
+
+    .line-card {
+        min-height: 200px;
+    }
+
+    .pos-sidebar {
+        flex-direction: column;
+        /* Stack sidebar items again on very small screens */
+    }
+
+    .system-status {
+        flex-direction: column;
+        /* Stack status items */
+        align-items: stretch;
+    }
+
+    .status-row {
+        justify-content: space-between;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 5px 0;
+    }
+
+    .actions-bar {
+        grid-template-columns: repeat(4, 1fr);
+        /* 2 rows, 4 columns */
+        grid-template-rows: repeat(2, 1fr);
+        gap: 5px;
+    }
+
+    .pos-footer {
+        height: auto;
+        padding: 5px;
+    }
+
+    .action-key {
+        min-height: 50px;
+    }
 }

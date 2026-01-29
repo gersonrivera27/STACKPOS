@@ -1,0 +1,236 @@
+@page "/dashboard"
+@rendermode InteractiveServer
+@using BurgerPOS.Models
+@using BurgerPOS.Services
+@inject PosApiService ApiService
+@inject NavigationManager Navigation
+@inject ILogger<Dashboard> Logger
+
+<div class="dashboard-container">
+    <!-- Header -->
+    <div class="dashboard-header">
+        <div class="dashboard-title">
+            <h1><i class="bi bi-graph-up-arrow"></i> Reporte de Ventas</h1>
+        </div>
+        <div class="date-controls">
+            <button class="btn btn-secondary" @onclick="PreviousDay"><i class="bi bi-chevron-left"></i></button>
+            <input type="date" class="date-input" value="@selectedDate.ToString("yyyy-MM-dd")" @onchange="OnDateChanged" />
+            <button class="btn btn-secondary" @onclick="NextDay" disabled="@(selectedDate.Date >= DateTime.Today)"><i class="bi bi-chevron-right"></i></button>
+            <button class="btn btn-primary" @onclick="LoadToday">Hoy</button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-container" style="display: flex; justify-content: center; align-items: center; height: 300px;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+    }
+    else if (dailySales != null)
+    {
+        <!-- Summary Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon sales"><i class="bi bi-currency-euro"></i></div>
+                <div class="stat-info">
+                    <h3>Venta Total</h3>
+                    <div class="stat-value">€@dailySales.Summary.TotalSales.ToString("F2")</div>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon orders"><i class="bi bi-receipt"></i></div>
+                <div class="stat-info">
+                    <h3>Órdenes</h3>
+                    <div class="stat-value">@dailySales.Summary.TotalOrders</div>
+                </div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon ticket"><i class="bi bi-calculator"></i></div>
+                <div class="stat-info">
+                    <h3>Ticket Promedio</h3>
+                    <div class="stat-value">€@dailySales.Summary.AverageTicket.ToString("F2")</div>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                 <div class="stat-icon cancel"><i class="bi bi-x-circle"></i></div>
+                 <div class="stat-info">
+                    <h3>Canceladas</h3>
+                    <div class="stat-value" style="color: var(--danger-color);">@dailySales.Summary.CancelledOrders</div>
+                 </div>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="charts-grid">
+            <!-- Top Products -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h2>🔥 Productos Más Vendidos</h2>
+                </div>
+                
+                @if (topProducts != null && topProducts.TopProducts.Any())
+                {
+                    <div class="progress-list">
+                        @{
+                            var maxQty = topProducts.TopProducts.Max(p => p.TotalQuantity); // Para calcular porcentaje
+                            if(maxQty == 0) maxQty=1;
+                        }
+                        
+                        @foreach (var prod in topProducts.TopProducts)
+                        {
+                            var percentage = (double)prod.TotalQuantity / maxQty * 100;
+                            var barClass = percentage > 80 ? "gradient-3" : (percentage > 50 ? "gradient-2" : "gradient-1");
+                            
+                            <div class="progress-item">
+                                <div class="progress-info">
+                                    <span>@prod.Name</span>
+                                    <span>@prod.TotalQuantity uds</span>
+                                </div>
+                                <div class="progress-meta">
+                                    @prod.Category • €@prod.TotalRevenue.ToString("F2")
+                                </div>
+                                <div class="progress-bar-bg">
+                                    <div class="progress-bar-fill @barClass" style="width: @percentage%"></div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="empty-state">
+                        <i class="bi bi-basket"></i>
+                        <p>No hay datos de productos hoy</p>
+                    </div>
+                }
+            </div>
+
+            <!-- Sales By Type -->
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h2>📊 Por Tipo de Orden</h2>
+                </div>
+                
+                @if (dailySales.ByOrderType.Any())
+                {
+                    <div class="progress-list">
+                         @{
+                            var maxTotal = dailySales.ByOrderType.Max(t => t.Total); 
+                            if(maxTotal == 0) maxTotal=1;
+                        }
+
+                        @foreach (var type in dailySales.ByOrderType)
+                        {
+                            var typeName = type.OrderType switch {
+                                "delivery" => "Domicilio",
+                                "takeout" => "Para Llevar",
+                                "dine_in" => "Mesa",
+                                _ => type.OrderType
+                            };
+                            
+                            var icon = type.OrderType switch {
+                                "delivery" => "bi-bicycle",
+                                "takeout" => "bi-bag",
+                                "dine_in" => "bi-shop",
+                                _ => "bi-question-circle"
+                            };
+
+                            var percentage = (double)type.Total / (double)maxTotal * 100;
+                            
+                             <div class="progress-item" style="padding: 10px; border: 1px solid #f0f0f0; border-radius: 8px;">
+                                <div class="progress-info" style="align-items: center;">
+                                    <span style="display: flex; align-items: center; gap: 8px;">
+                                        <i class="bi @icon" style="font-size: 1.2rem; color: var(--primary-accent);"></i> 
+                                        @typeName
+                                    </span>
+                                    <span style="font-size: 1.1rem;">€@type.Total.ToString("F2")</span>
+                                </div>
+                                <div class="progress-meta" style="margin-left: 32px;">
+                                    @type.Count órdenes
+                                </div>
+                             </div>
+                        }
+                    </div>
+                }
+                 else
+                {
+                     <div class="empty-state">
+                        <i class="bi bi-pie-chart"></i>
+                        <p>No hay ventas registradas</p>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private DateTime selectedDate = DateTime.Today;
+    private DailySalesResponse? dailySales;
+    private TopProductsResponse? topProducts;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task OnDateChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out DateTime date))
+        {
+            selectedDate = date;
+            await LoadData();
+        }
+    }
+
+    private async Task PreviousDay()
+    {
+        selectedDate = selectedDate.AddDays(-1);
+        await LoadData();
+    }
+
+    private async Task NextDay()
+    {
+        selectedDate = selectedDate.AddDays(1);
+        await LoadData();
+    }
+
+    private async Task LoadToday()
+    {
+        selectedDate = DateTime.Today;
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        StateHasChanged();
+        
+        try
+        {
+            // Load summaries and top products in parallel
+            var salesTask = ApiService.GetDailySalesReportAsync(selectedDate);
+            var productsTask = ApiService.GetTopProductsReportAsync(selectedDate, selectedDate, 5); // Top 5 for today
+            
+            await Task.WhenAll(salesTask, productsTask);
+            
+            dailySales = await salesTask;
+            topProducts = await productsTask;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error cargando dashboard");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+}

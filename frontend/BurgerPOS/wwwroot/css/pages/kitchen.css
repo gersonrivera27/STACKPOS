@@ -1,0 +1,258 @@
+/* Kitchen Screen - Light Theme */
+
+/* Layout fits into pos-main */
+.kitchen-board {
+    display: flex;
+    gap: 20px;
+    height: 100%;
+    overflow-x: auto;
+    padding-bottom: 10px;
+}
+
+.kanban-column {
+    flex: 1;
+    background-color: #f8f9fa;
+    /* Lighter background for columns */
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    min-width: 320px;
+    max-width: 450px;
+    box-shadow: var(--shadow-sm);
+}
+
+.kanban-column.completed-col {
+    max-width: 300px;
+    background-color: #f1f2f6;
+    opacity: 0.9;
+}
+
+.column-header {
+    padding: 15px;
+    border-bottom: 1px solid var(--border-color);
+    text-align: center;
+    background: white;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.column-header h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 800;
+}
+
+/* Header Colors */
+.pending-col .column-header h2 {
+    color: var(--info-color);
+}
+
+.preparing-col .column-header h2 {
+    color: var(--warning-color);
+}
+
+.completed-col .column-header h2 {
+    color: var(--success-color);
+}
+
+.column-content {
+    padding: 15px;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Cards */
+.kitchen-card {
+    background: white;
+    border-radius: var(--radius-md);
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-left: 5px solid transparent;
+    /* Status indicator */
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    animation: slideIn 0.3s ease-out;
+}
+
+.kitchen-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateY(10px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Status Borders */
+.kitchen-card.pending {
+    border-left-color: var(--info-color);
+}
+
+.kitchen-card.preparing {
+    border-left-color: var(--warning-color);
+    background-color: #fffcf5;
+}
+
+.kitchen-card.completed {
+    border-left-color: var(--success-color);
+    opacity: 0.8;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.order-id {
+    font-weight: 800;
+    font-size: 1.2rem;
+    color: var(--text-main);
+}
+
+.order-time {
+    font-family: monospace;
+    background: var(--gray-lighter);
+    color: var(--text-main);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: bold;
+}
+
+.card-type {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.today-customer {
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+/* Items */
+.card-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.order-item {
+    display: grid;
+    grid-template-columns: 30px 1fr;
+    align-items: baseline;
+    line-height: 1.4;
+}
+
+.qty {
+    font-weight: 800;
+    color: var(--primary-dark);
+    font-size: 1.1rem;
+}
+
+.name {
+    font-size: 1rem;
+    color: var(--text-main);
+}
+
+.modifiers {
+    grid-column: 2;
+    color: var(--danger-color);
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: #ffebeb;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-top: 2px;
+    display: inline-block;
+}
+
+/* Actions */
+.card-actions {
+    margin-top: 5px;
+    display: flex;
+    gap: 8px;
+}
+
+.btn-action {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.2s;
+    color: white;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.btn-action:hover {
+    filter: brightness(0.9);
+}
+
+.btn-action.start {
+    background-color: var(--info-color);
+}
+
+.btn-action.finish {
+    background-color: var(--success-color);
+}
+
+.btn-action.undo {
+    background-color: var(--gray);
+    font-size: 0.8rem;
+}
+
+.btn-action.print {
+    background-color: var(--gray);
+    max-width: 50px;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    color: var(--gray);
+    margin-top: 50px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    color: var(--gray-light);
+}
+
+/* Loading */
+.kitchen-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--gray);
+}

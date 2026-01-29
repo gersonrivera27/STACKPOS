@@ -1,333 +1,252 @@
-    @using BurgerPOS.Services
-    @using BurgerPOS.Models
-    @inject PosApiService ApiService
-    @inject NavigationManager Navigation 
-    @inject IJSRuntime JS
-    @inject ILogger<CustomerSearchModal> Logger
-    @rendermode InteractiveServer
+@using BurgerPOS.Services
+@using BurgerPOS.Models
+@inject PosApiService ApiService
+@inject NavigationManager Navigation 
+@inject IJSRuntime JS
+@inject ILogger<CustomerSearchModal> Logger
+@rendermode InteractiveServer
 
-    <link rel="stylesheet" href="css/components/customer-search-modal.css" />
+@if (IsOpen)
+{
+    <div class="modal-backdrop" @onclick="HandleBackdropClick">
+        <!-- 'large' para más ancho en búsqueda -->
+        <div class="modal-content large" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2><i class="bi bi-people-fill"></i> CLIENTES</h2>
+                <button class="btn-close-modal" @onclick="Cancel" type="button"><i class="bi bi-x"></i></button>
+            </div>
 
-    @if (IsOpen)
-    {
-        <div class="modal-backdrop" @onclick="HandleBackdropClick">
-            <div class="modal-search" @onclick:stopPropagation="true">
-                <div class="modal-header">
-                    <h2>🔍 Buscar Cliente</h2>
-                    <button class="btn-close" @onclick="Cancel" type="button">×</button>
-                </div>
-
-                <div class="modal-body">
-                    <!-- Búsqueda por Teléfono con Autocompletado -->
-                    <div class="search-section">
-                        <label class="search-label">Teléfono del Cliente</label>
-                        <div class="search-input-wrapper">
-                            <input type="tel"
-        class="search-input"
-        value="@searchQuery"
-        @oninput="OnSearchQueryChanged"
-        @onfocus="OnSearchFocus"
-        placeholder="Escribe el teléfono o nombre..."
-        autocomplete="off" />
-                            
-                            @if (isSearching)
-                            {
-                                <div class="search-spinner">🔄</div>
-                            }
-                        </div>
-
-                        <!-- Dropdown de Sugerencias -->
-                        @if (showSuggestions && suggestions.Any())
+            <div class="modal-body" style="min-height: 400px; display: flex; flex-direction: column;">
+                
+                <!-- Barra de Búsqueda -->
+                <div style="flex-shrink: 0; margin-bottom: 20px;">
+                    <label class="modal-label">Buscar por Teléfono o Nombre</label>
+                    <div style="position: relative;">
+                        <input type="text" class="modal-input" 
+                               value="@searchQuery"
+                               @oninput="OnSearchQueryChanged"
+                               @onfocus="OnSearchFocus"
+                               placeholder="Escribe para buscar..."
+                               autocomplete="off" 
+                               style="padding-left: 40px;" />
+                        <i class="bi bi-search" style="position: absolute; left: 12px; top: 12px; color: #95a5a6;"></i>
+                        
+                        @if (isSearching)
                         {
-                            <div class="suggestions-dropdown">
-                                @foreach (var customer in suggestions)
-                                {
-                                    <div class="suggestion-item" @onclick="() => SelectCustomer(customer)">
-                                        <div class="suggestion-icon">👤</div>
-                                        <div class="suggestion-info">
-                                            <div class="suggestion-name">@customer.Name</div>
-                                            <div class="suggestion-details">
-                                                📞 @customer.Phone
-                                                @if (!string.IsNullOrEmpty(customer.AddressLine1))
-                                                {
-                                                    <span class="suggestion-separator">•</span>
-                                                    <span>📍 @customer.AddressLine1, @customer.City</span>
-                                                }
-                                            </div>
-                                            @if (customer.TotalOrders > 0)
-                                            {
-                                                <div class="suggestion-stats">
-                                                    🛒 @customer.TotalOrders órdenes • 💰 €@customer.TotalSpent.ToString("F2")
-                                                </div>
-                                            }
-                                        </div>
-                                        <div class="suggestion-arrow">→</div>
-                                    </div>
-                                }
-                            </div>
-                        }
-
-                        @if (showSuggestions && !suggestions.Any() && !isSearching && !string.IsNullOrEmpty(searchQuery))
-                        {
-                            <div class="no-results">
-                                <div class="no-results-icon">🔍</div>
-                                <div class="no-results-text">No se encontraron clientes</div>
-                                <button class="btn-create-new" @onclick="ShowCreateForm" type="button">
-                                    ➕ Crear nuevo cliente
-                                </button>
-                            </div>
+                            <span class="spinner-border spinner-border-sm" style="position: absolute; right: 12px; top: 12px; color: var(--primary-accent);"></span>
                         }
                     </div>
+                </div>
 
+                <!-- Lista de Resultados / Contenido -->
+                <div style="flex: 1; overflow-y: auto; position: relative;">
+                    
+                    <!-- Sugerencias (Dropdown style integrated) -->
+                    @if (showSuggestions && suggestions.Any())
+                    {
+                        <div class="list-group">
+                            @foreach (var customer in suggestions)
+                            {
+                                <div class="list-group-item list-group-item-action" 
+                                     @onclick="() => SelectCustomer(customer)" 
+                                     style="cursor: pointer; padding: 12px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px;">
+                                    
+                                    <div style="width: 40px; height: 40px; background: #e3f2fd; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #1976d2;">
+                                        <i class="bi bi-person-fill" style="font-size: 1.2rem;"></i>
+                                    </div>
+                                    
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: 600;">@customer.Name</div>
+                                        <div style="font-size: 0.85rem; color: #7f8c8d;">
+                                            <i class="bi bi-telephone"></i> @customer.Phone
+                                            @if (!string.IsNullOrEmpty(customer.AddressLine1))
+                                            {
+                                                <span> • <i class="bi bi-geo-alt"></i> @customer.AddressLine1, @customer.City</span>
+                                            }
+                                        </div>
+                                    </div>
+                                    
+                                    <i class="bi bi-chevron-right" style="color: #ccc;"></i>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else if (showSuggestions && !suggestions.Any() && !isSearching && !string.IsNullOrEmpty(searchQuery))
+                    {
+                        <div style="text-align: center; padding: 30px; color: #7f8c8d;">
+                            <i class="bi bi-search" style="font-size: 3rem; opacity: 0.3;"></i>
+                            <p>No se encontraron clientes</p>
+                            <button class="btn-modal btn-create" @onclick="ShowCreateForm" style="margin: 0 auto;">
+                                <i class="bi bi-person-plus-fill"></i> Crear Nuevo Cliente
+                            </button>
+                        </div>
+                    }
+                    
                     <!-- Cliente Seleccionado -->
                     @if (selectedCustomer != null)
                     {
-                        <div class="selected-customer">
-                            <div class="selected-header">
-                                <h3>✅ Cliente Seleccionado</h3>
-                                <button class="btn-change" @onclick="ClearSelection" type="button">Cambiar</button>
+                        <div style="background: #f8f9fa; border-radius: 8px; padding: 20px; border: 1px solid #e0e0e0;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                                <h3 style="margin: 0; color: var(--success-color); font-size: 1.1rem;">
+                                    <i class="bi bi-check-circle-fill"></i> Cliente Seleccionado
+                                </h3>
+                                <button class="btn-modal btn-secondary" style="padding: 5px 10px; font-size: 0.8rem;" @onclick="ClearSelection">
+                                    Cambiar
+                                </button>
                             </div>
-                            
-                            <div class="customer-card">
-                                <div class="customer-avatar">👤</div>
-                                <div class="customer-info">
-                                    <div class="customer-name">@selectedCustomer.Name</div>
-                                    <div class="customer-phone">📞 @selectedCustomer.Phone</div>
-                                    @if (!string.IsNullOrEmpty(selectedCustomer.Email))
-                                    {
-                                        <div class="customer-email">✉️ @selectedCustomer.Email</div>
-                                    }
-                                    @if (!string.IsNullOrEmpty(selectedCustomer.AddressLine1))
-                                    {
-                                        <div class="customer-address">
-                                            📍 @selectedCustomer.AddressLine1
-                                            @if (!string.IsNullOrEmpty(selectedCustomer.AddressLine2))
-                                            {
-                                                <span>, @selectedCustomer.AddressLine2</span>
-                                            }
-                                            <br />
-                                            @selectedCustomer.City, @selectedCustomer.County
-                                            @if (!string.IsNullOrEmpty(selectedCustomer.Eircode))
-                                            {
-                                                <span> - @selectedCustomer.Eircode</span>
-                                            }
-                                        </div>
-                                    }
-                                    @if (selectedCustomer.TotalOrders > 0)
-                                    {
-                                        <div class="customer-stats">
-                                            <span class="stat-badge">🛒 @selectedCustomer.TotalOrders órdenes</span>
-                                            <span class="stat-badge">💰 €@selectedCustomer.TotalSpent.ToString("F2") gastado</span>
-                                        </div>
-                                    }
+
+                            <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                                <div style="width: 60px; height: 60px; background: white; border-radius: 50%; border: 2px solid #e0e0e0; display: flex; align-items: center; justify-content: center;">
+                                    <i class="bi bi-person" style="font-size: 2rem; color: #7f8c8d;"></i>
+                                </div>
+                                <div>
+                                    <h2 style="margin: 0; font-size: 1.3rem;">@selectedCustomer.Name</h2>
+                                    <div style="color: #7f8c8d; margin-top: 5px;">
+                                        <div><i class="bi bi-telephone-fill"></i> @selectedCustomer.Phone</div>
+                                        @if (!string.IsNullOrEmpty(selectedCustomer.AddressLine1))
+                                        {
+                                            <div><i class="bi bi-geo-alt-fill"></i> @selectedCustomer.AddressLine1, @selectedCustomer.City</div>
+                                        }
+                                    </div>
                                 </div>
                             </div>
 
-                            <!-- Elegir Tipo de Orden -->
-                            <div class="order-type-section">
-                                <h4>Tipo de Orden</h4>
-                                <div class="order-type-buttons">
-                                    <button class="order-type-btn delivery @(orderType == "delivery" ? "selected" : "")" 
-                                            @onclick='() => orderType = "delivery"' 
-                                            type="button">
-                                        <span class="order-type-icon">🚗</span>
-                                        <span class="order-type-label">Delivery</span>
+                            <div style="border-top: 1px dashed #ccc; padding-top: 20px;">
+                                <label class="modal-label">Tipo de Orden</label>
+                                <div class="payment-options" style="grid-template-columns: 1fr 1fr;">
+                                    <button class="btn-payment-option @(orderType == "delivery" ? "active" : "")" 
+                                            @onclick='() => orderType = "delivery"'>
+                                        <i class="bi bi-bicycle" style="font-size: 2rem;"></i>
+                                        <span>Domicilio</span>
                                     </button>
-                                    <button class="order-type-btn takeout @(orderType == "takeout" ? "selected" : "")" 
-                                            @onclick='() => orderType = "takeout"' 
-                                            type="button">
-                                        <span class="order-type-icon">🥡</span>
-                                        <span class="order-type-label">Para Llevar</span>
+                                    <button class="btn-payment-option @(orderType == "takeout" ? "active" : "")" 
+                                            @onclick='() => orderType = "takeout"'>
+                                        <i class="bi bi-bag" style="font-size: 2rem;"></i>
+                                        <span>Para Llevar</span>
                                     </button>
                                 </div>
                             </div>
                         </div>
                     }
 
-                    <!-- Formulario para Crear Nuevo Cliente -->
+                    <!-- Formulario Crear Nuevo -->
                     @if (showCreateForm)
                     {
-                        <div class="create-form-section">
-                            <div class="create-form-header">
-                                <h3>➕ Crear Nuevo Cliente</h3>
-                                <button class="btn-back" @onclick="HideCreateForm" type="button">← Volver a Buscar</button>
+                        <div style="padding: 0 10px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h3 style="margin: 0;">Nuevo Cliente</h3>
+                                <button class="btn-modal btn-secondary" @onclick="HideCreateForm" style="padding: 5px 10px; font-size: 0.8rem;">
+                                    <i class="bi bi-arrow-left"></i> Volver
+                                </button>
+                            </div>
+
+                            <div class="row" style="display: flex; gap: 15px;">
+                                <div class="modal-form-group" style="flex: 1;">
+                                    <label class="modal-label">Teléfono *</label>
+                                    <input type="tel" class="modal-input" @bind="newPhone" @bind:event="oninput" placeholder="087..." />
+                                </div>
+                                <div class="modal-form-group" style="flex: 1;">
+                                    <label class="modal-label">Nombre *</label>
+                                    <input type="text" class="modal-input" @bind="newName" @bind:event="oninput" placeholder="Nombre completo" />
+                                </div>
                             </div>
                             
+                            <div class="modal-form-group">
+                                <label class="modal-label">Eircode (Opcional)</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <input type="text" class="modal-input" @bind="newEircode" @bind:event="oninput" placeholder="A92..." style="text-transform: uppercase;" />
+                                    <button class="btn-modal btn-create" @onclick="SearchNewCustomerAddress" disabled="@isSearchingNewAddress">
+                                        @(isSearchingNewAddress ? "..." : "Buscar")
+                                    </button>
+                                    @if (!string.IsNullOrEmpty(newEircode))
+                                    {
+                                        <button class="btn-modal btn-map" 
+                                                @onclick="OpenInMap" 
+                                                type="button"
+                                                title="Ver en Google Maps"
+                                                style="padding: 10px; background-color: #27ae60; color: white; border: none; border-radius: 6px; margin-left: 5px;">
+                                            <i class="bi bi-geo-alt-fill"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="modal-form-group">
+                                <label class="modal-label">Dirección</label>
+                                <input type="text" class="modal-input" @bind="newAddress" placeholder="Calle principal..." />
+                            </div>
+
+                             <div class="row" style="display: flex; gap: 15px;">
+                                <div class="modal-form-group" style="flex: 1;">
+                                    <label class="modal-label">Ciudad</label>
+                                    <input type="text" class="modal-input" @bind="newCity" placeholder="Ciudad" />
+                                </div>
+                                <div class="modal-form-group" style="flex: 1;">
+                                    <label class="modal-label">County</label>
+                                    <input type="text" class="modal-input" @bind="newCounty" placeholder="County" />
+                                </div>
+                            </div>
+
                             @if (!string.IsNullOrEmpty(createErrorMessage))
                             {
-                                <div class="alert alert-error">
-                                    <strong>Error:</strong> @createErrorMessage
+                                <div class="modal-alert">
+                                    <i class="bi bi-exclamation-octagon-fill"></i> @createErrorMessage
                                 </div>
                             }
-                            
-                            <!-- Formulario completo -->
-                            <div class="simple-form">
-                                <div class="form-group">
-                                    <label class="form-label required">Teléfono</label>
-                                    <input type="tel" 
-                                        class="form-input" 
-                                        @bind="newPhone"
-                                        @bind:event="oninput"
-                                        placeholder="087 123 4567"
-                                        maxlength="15" />
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label required">Nombre Completo</label>
-                                    <input type="text" 
-                                        class="form-input" 
-                                        @bind="newName"
-                                        @bind:event="oninput"
-                                        placeholder="John Doe" />
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">Email</label>
-                                    <input type="email" 
-                                        class="form-input" 
-                                        @bind="newEmail"
-                                        @bind:event="oninput"
-                                        placeholder="cliente@ejemplo.com" />
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">Eircode</label>
-                                    <div class="input-group">
-                                        <input type="text" 
-                                            class="form-input" 
-                                            @bind="newEircode"
-                                            @bind:event="oninput"
-                                            placeholder="A92 D65P"
-                                            maxlength="8"
-                                            style="text-transform: uppercase;" />
-                                        <button class="btn-search" 
-                                                @onclick="SearchNewCustomerAddress" 
-                                                type="button"
-                                                disabled="@isSearchingNewAddress">
-                                            @(isSearchingNewAddress ? "🔄" : "🔍") Buscar
-                                        </button>
-                                    </div>
-                                    <small class="form-hint">Ingresa el Eircode para autocompletar la dirección</small>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">Dirección</label>
-                                    <input type="text" 
-                                        class="form-input" 
-                                        @bind="newAddress"
-                                        @bind:event="oninput"
-                                        placeholder="123 Main Street" />
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">Apartamento / Piso (opcional)</label>
-                                    <input type="text" 
-                                        class="form-input" 
-                                        @bind="newAddressLine2"
-                                        @bind:event="oninput"
-                                        placeholder="Apt 4B" />
-                                </div>
-                                
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label class="form-label">Ciudad</label>
-                                        <input type="text" 
-                                            class="form-input" 
-                                            @bind="newCity"
-                                            @bind:event="oninput"
-                                            placeholder="Drogheda" />
-                                    </div>
-                                    
-                                    <div class="form-group">
-                                        <label class="form-label">County</label>
-                                        <input type="text" 
-                                            class="form-input" 
-                                            @bind="newCounty"
-                                            @bind:event="oninput"
-                                            placeholder="Louth" />
-                                    </div>
-                                </div>
-                                
-                                <div class="form-group">
-                                    <label class="form-label">Notas</label>
-                                    <textarea class="form-textarea" 
-                                            @bind="newNotes"
-                                            @bind:event="oninput"
-                                            rows="2"
-                                            placeholder="Instrucciones especiales..."></textarea>
-                                </div>
-                                
-                                @if (newLatitude.HasValue && newLongitude.HasValue)
-                                {
-                                    <div class="location-indicator">
-                                        📍 Ubicación: @newLatitude.Value.ToString("F6"), @newLongitude.Value.ToString("F6")
-                                    </div>
-                                }
-                            </div>
                         </div>
                     }
 
-                    @if (!string.IsNullOrEmpty(errorMessage))
-                    {
-                        <div class="alert alert-error">
-                            <strong>Error:</strong> @errorMessage
-                        </div>
-                    }
-                </div>
-
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="Cancel" type="button">
-                        Cancelar
-                    </button>
-                    
-                    @if (showCreateForm)
-                    {
-                        <button class="btn btn-primary" 
-                                @onclick="CreateAndContinue" 
-                                type="button"
-                                disabled="@(!IsNewCustomerValid() || isSaving)">
-                            @(isSaving ? "Creando..." : "Crear y Continuar")
-                        </button>
-                    }
-                    else if (selectedCustomer != null)
-                    {
-                        <button class="btn btn-primary btn-large" 
-                                @onclick="ContinueWithOrder" 
-                                type="button"
-                                disabled="@(string.IsNullOrEmpty(orderType))">
-                            Continuar con la Orden →
-                        </button>
-                    }
                 </div>
             </div>
+
+            <div class="modal-footer">
+                <button class="btn-modal btn-secondary" @onclick="Cancel">Cancelar</button>
+                
+                @if (showCreateForm)
+                {
+                    <button class="btn-modal btn-create" @onclick="CreateAndContinue" disabled="@(!IsNewCustomerValid() || isSaving)">
+                         @if(isSaving) { <span class="spinner-border spinner-border-sm"></span> }
+                         else { <i class="bi bi-plus-lg"></i> }
+                        Crear Cliente
+                    </button>
+                }
+                else if (selectedCustomer != null)
+                {
+                    <button class="btn-modal btn-primary" @onclick="ContinueWithOrder" disabled="@(string.IsNullOrEmpty(orderType))">
+                        CONTINUAR <i class="bi bi-arrow-right"></i>
+                    </button>
+                }
+            </div>
         </div>
-    }
+    </div>
+}
 
-    @code {
-        [Parameter] public bool IsOpen { get; set; }
-        [Parameter] public EventCallback<(Customer customer, string orderType)> OnContinue { get; set; }
-        [Parameter] public EventCallback OnCancel { get; set; }
-        [Parameter] public int PhoneLine { get; set; } = 1;
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<(Customer customer, string orderType)> OnContinue { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public int PhoneLine { get; set; } = 1;
 
-        private string searchQuery = "";
-        private List<Customer> suggestions = new();
-        private Customer? selectedCustomer = null;
-        private string orderType = "";
-        private bool showSuggestions = false;
-        private bool isSearching = false;
-        private bool showCreateForm = false;
-        private bool isSaving = false;
-        private string errorMessage = "";
-        private bool _wasOpen = false;
-        private bool isInitialRender = true;
-        private System.Threading.Timer? searchTimer;
+    private string searchQuery = "";
+    private List<Customer> suggestions = new();
+    private Customer? selectedCustomer = null;
+    private string orderType = "";
+    private bool showSuggestions = false;
+    private bool isSearching = false;
+    private bool showCreateForm = false;
+    private bool isSaving = false;
+    private string errorMessage = "";
+ 
+    private bool _wasOpen = false;
+    private bool isInitialRender = true;
+    private System.Threading.Timer? searchTimer;
 
-        // Datos para nuevo cliente
-        private string newPhone = "";
-        private string newName = "";
-        private string newAddress = "";
-        private string newCity = "Drogheda";
-        private string newEmail = "";
+    // Datos para nuevo cliente
+    private string newPhone = "";
+    private string newName = "";
+    private string newAddress = "";
+    private string newCity = "Drogheda";
+    private string newEmail = "";
     private string newEircode = "";
     private string newAddressLine2 = "";
     private string newCounty = "Louth";
@@ -337,53 +256,43 @@
     private bool isSearchingNewAddress = false;
     private string createErrorMessage = "";
 
-        protected override void OnParametersSet()
+    protected override void OnParametersSet()
+    {
+        if (IsOpen && !_wasOpen)
         {
-            if (IsOpen && !_wasOpen)
-            {
-                Logger.LogInformation("🆕 Modal de búsqueda abierto");
-                ResetModal();
-                isInitialRender = true;
-                Task.Delay(300).ContinueWith(_ => isInitialRender = false);
-            }
-            else if (!IsOpen && _wasOpen)
-            {
-                Logger.LogInformation("🔒 Modal cerrado");
-            }
-            
-            _wasOpen = IsOpen;
+            ResetModal();
+            isInitialRender = true;
+            Task.Delay(300).ContinueWith(_ => isInitialRender = false);
         }
+        _wasOpen = IsOpen;
+    }
 
-        private void ResetModal()
+    private void ResetModal()
+    {
+        searchQuery = "";
+        suggestions.Clear();
+        selectedCustomer = null;
+        orderType = "";
+        showSuggestions = false;
+        showCreateForm = false;
+        errorMessage = "";
+        newPhone = "";
+        newName = "";
+        newAddress = "";
+        newCity = "Drogheda";
+    }
+
+    private void OnSearchFocus()
+    {
+        if (!string.IsNullOrWhiteSpace(searchQuery) && suggestions.Any())
         {
-            searchQuery = "";
-            suggestions.Clear();
-            selectedCustomer = null;
-            orderType = "";
-            showSuggestions = false;
-            showCreateForm = false;
-            errorMessage = "";
-            newPhone = "";
-            newName = "";
-            newAddress = "";
-            newCity = "Drogheda";
+            showSuggestions = true;
         }
+    }
 
-        
-
-        private void OnSearchFocus()
-        {
-            if (!string.IsNullOrWhiteSpace(searchQuery) && suggestions.Any())
-            {
-                showSuggestions = true;
-            }
-        }
-
-        private async Task OnSearchQueryChanged(ChangeEventArgs e)
+    private async Task OnSearchQueryChanged(ChangeEventArgs e)
     {
         searchQuery = e.Value?.ToString() ?? "";
-        
-        // Cancelar búsqueda anterior
         searchTimer?.Dispose();
         
         if (string.IsNullOrWhiteSpace(searchQuery) || searchQuery.Length < 2)
@@ -398,130 +307,135 @@
         showSuggestions = true;
         StateHasChanged();
         
-        // Debounce: esperar 300ms antes de buscar
         searchTimer = new System.Threading.Timer(async _ =>
         {
             await SearchCustomers(searchQuery);
         }, null, 300, Timeout.Infinite);
     }
 
-        private async Task SearchCustomers(string query)
+    private async Task SearchCustomers(string query)
+    {
+        try
         {
-            try
+            var results = await ApiService.SearchCustomersAsync(query);
+            await InvokeAsync(() =>
             {
-                Logger.LogInformation("🔍 Buscando clientes: {Query}", query);
-                
-                var results = await ApiService.SearchCustomersAsync(query);
-                
-                await InvokeAsync(() =>
-                {
-                    suggestions = results ?? new List<Customer>();
-                    isSearching = false;
-                    StateHasChanged();
-                });
-                
-                Logger.LogInformation("✅ Encontrados {Count} clientes", suggestions.Count);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Error buscando clientes");
-                await InvokeAsync(() =>
-                {
-                    isSearching = false;
-                    StateHasChanged();
-                });
-            }
-        }
-
-        private void SelectCustomer(Customer customer)
-        {
-            Logger.LogInformation("✅ Cliente seleccionado: {Name}", customer.Name);
-            selectedCustomer = customer;
-            showSuggestions = false;
-            searchQuery = customer.Phone;
-            StateHasChanged();
-        }
-
-        private void ClearSelection()
-        {
-            selectedCustomer = null;
-            orderType = "";
-            searchQuery = "";
-            StateHasChanged();
-        }
-
-        private void ShowCreateForm()
-        {
-            showCreateForm = true;
-            showSuggestions = false;
-            newPhone = searchQuery;
-            StateHasChanged();
-        }
-
-        private void HideCreateForm()
-        {
-            showCreateForm = false;
-            StateHasChanged();
-        }
-
-        private bool IsNewCustomerValid()
-        {
-            return !string.IsNullOrWhiteSpace(newPhone) && 
-                newPhone.Length >= 9 &&
-                !string.IsNullOrWhiteSpace(newName);
-        }
-
-        private async Task CreateAndContinue()
-        {
-            if (!IsNewCustomerValid()) return;
-
-            isSaving = true;
-            errorMessage = "";
-            StateHasChanged();
-
-            try
-            {
-                var customerData = new CustomerCreate
-                {
-                    Phone = newPhone.Trim(),
-                    Name = newName.Trim(),
-                    Email = null,
-                    AddressLine1 = string.IsNullOrWhiteSpace(newAddress) ? null : newAddress.Trim(),
-                    AddressLine2 = null,
-                    City = newCity.Trim(),
-                    County = "Louth",
-                    Eircode = null,
-                    Latitude = null,
-                    Longitude = null,
-                    Notes = null
-                };
-
-                var result = await ApiService.CreateCustomerAsync(customerData);
-
-                if (result != null)
-                {
-                    selectedCustomer = result;
-                    showCreateForm = false;
-                    Logger.LogInformation("✅ Cliente creado: {Name}", result.Name);
-                }
-                else
-                {
-                    errorMessage = "Error al crear el cliente";
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Error creando cliente");
-                errorMessage = "Error al crear: " + ex.Message;
-            }
-            finally
-            {
-                isSaving = false;
+                suggestions = results ?? new List<Customer>();
+                isSearching = false;
                 StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error buscando clientes");
+            await InvokeAsync(() =>
+            {
+                isSearching = false;
+                StateHasChanged();
+            });
+        }
+    }
+
+    private void SelectCustomer(Customer customer)
+    {
+        selectedCustomer = customer;
+        showSuggestions = false;
+        searchQuery = customer.Phone;
+        StateHasChanged();
+    }
+
+    private void ClearSelection()
+    {
+        selectedCustomer = null;
+        orderType = "";
+        searchQuery = "";
+        StateHasChanged();
+    }
+
+    private void ShowCreateForm()
+    {
+        showCreateForm = true;
+        showSuggestions = false;
+        newPhone = searchQuery;
+        StateHasChanged();
+    }
+
+    private void HideCreateForm()
+    {
+        showCreateForm = false;
+        StateHasChanged();
+    }
+
+    private bool IsNewCustomerValid()
+    {
+        return !string.IsNullOrWhiteSpace(newPhone) && 
+               newPhone.Length >= 9 &&
+               !string.IsNullOrWhiteSpace(newName);
+    }
+
+    private async Task CreateAndContinue()
+    {
+        if (!IsNewCustomerValid()) return;
+
+        isSaving = true;
+        errorMessage = "";
+        StateHasChanged();
+
+        try
+        {
+            var customerData = new CustomerCreate
+            {
+                Phone = newPhone.Trim(),
+                Name = newName.Trim(),
+                Email = null,
+                AddressLine1 = string.IsNullOrWhiteSpace(newAddress) ? null : newAddress.Trim(),
+                AddressLine2 = null,
+                City = newCity.Trim(),
+                County = "Louth",
+                Eircode = null,
+                Latitude = null,
+                Longitude = null,
+                Notes = null
+            };
+
+            var result = await ApiService.CreateCustomerAsync(customerData);
+
+            if (result != null)
+            {
+                selectedCustomer = result;
+                showCreateForm = false;
+                Logger.LogInformation("✅ Cliente creado: {Name}", result.Name);
+            }
+            else
+            {
+                createErrorMessage = "Error al crear el cliente";
             }
         }
+        catch (Exception ex)
+        {
+            createErrorMessage = "Error al crear: " + ex.Message;
+        }
+        finally
+        {
+            isSaving = false;
+            StateHasChanged();
+        }
+    }
 
-        private async Task SearchNewCustomerAddress()
+    private async Task OpenInMap()
+    {
+        if (string.IsNullOrWhiteSpace(newEircode)) return;
+        try 
+        {
+            await JS.InvokeVoidAsync("openInGoogleMaps", newEircode);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error opening map");
+        }
+    }
+
+    private async Task SearchNewCustomerAddress()
     {
         if (string.IsNullOrWhiteSpace(newEircode))
         {
@@ -536,76 +450,59 @@
 
         try
         {
-            Logger.LogInformation("🔍 Buscando dirección para Eircode: {Eircode}", newEircode);
-            
-            // ESTA LÍNEA ES CRÍTICA - debe llamar a la función JavaScript
             await JS.InvokeVoidAsync("searchAddressByEircode", newEircode, 
                 DotNetObjectReference.Create(this));
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error buscando dirección");
             createErrorMessage = "Error al buscar la dirección: " + ex.Message;
             isSearchingNewAddress = false;
             StateHasChanged();
         }
     }
 
-        private void ContinueWithOrder()
-{
-    if (selectedCustomer == null || string.IsNullOrEmpty(orderType)) return;
-    
-    Logger.LogInformation("🚀 Continuando con orden - Cliente: {Name}, Tipo: {Type}, Línea: {Line}", 
-        selectedCustomer.Name, orderType, PhoneLine);
-    
-    // Navegar a la página de creación de orden
-    Navigation.NavigateTo($"/order/{selectedCustomer.Id}/{orderType}/{PhoneLine}");
-}
+    private void ContinueWithOrder()
+    {
+        if (selectedCustomer == null || string.IsNullOrEmpty(orderType)) return;
+        Navigation.NavigateTo($"/order/{selectedCustomer.Id}/{orderType}/{PhoneLine}");
+    }
 
-        private void HandleBackdropClick()
+    private void HandleBackdropClick()
+    {
+        if (!isInitialRender)
         {
-            if (!isInitialRender)
-            {
-                Cancel();
-            }
+            Cancel();
         }
+    }
 
-        private async Task Cancel()
-        {
-            Logger.LogInformation("🚫 Cancelando búsqueda de cliente");
-            ResetModal();
-            await OnCancel.InvokeAsync();
-        }
+    private async Task Cancel()
+    {
+        ResetModal();
+        await OnCancel.InvokeAsync();
+    }
 
-        public void Dispose()
-        {
-            searchTimer?.Dispose();
-        }
+    public void Dispose()
+    {
+        searchTimer?.Dispose();
+    }
 
-        [JSInvokable]
+    [JSInvokable]
     public void OnAddressFound(string addressLine, string cityResult, double lat, double lng)
     {
-        Logger.LogInformation("✅ Dirección recibida de JavaScript - Dirección: {Address}, Ciudad: {City}, Coordenadas: ({Lat}, {Lng})", 
-            addressLine, cityResult, lat, lng);
-        
         newAddress = addressLine;
         newCity = cityResult;
         newLatitude = lat;
         newLongitude = lng;
         isSearchingNewAddress = false;
-        createErrorMessage = ""; // Limpiar errores previos
-        
+        createErrorMessage = ""; 
         StateHasChanged();
-        
-        Logger.LogInformation("✅ Campos actualizados en el modal");
     }
 
     [JSInvokable]
     public void OnAddressError(string error)
     {
-        Logger.LogError("❌ Error desde JavaScript: {Error}", error);
         createErrorMessage = error;
         isSearchingNewAddress = false;
         StateHasChanged();
     }
-    }
+}

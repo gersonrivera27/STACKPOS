@@ -1,0 +1,358 @@
+@page "/caja"
+@rendermode InteractiveServer
+@using BurgerPOS.Models
+@using BurgerPOS.Services
+@inject PosApiService ApiService
+@inject NavigationManager Navigation
+@inject ILogger<CashRegister> Logger
+
+<div class="pos-layout">
+    <header class="pos-header">
+        <div class="brand">
+            <div class="brand-icon"></div>
+            <span class="brand-name"><strong>STACK</strong> CASH</span>
+        </div>
+        
+        <div class="header-info">
+             @if (activeSession != null)
+             {
+                <div class="info-pill" style="background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9;">
+                    <i class="bi bi-unlock-fill icon"></i>
+                    <span class="text">SESIÓN ABIERTA</span>
+                </div>
+             }
+             else
+             {
+                <div class="info-pill" style="background: #ffebee; color: #c62828; border: 1px solid #ffcdd2;">
+                    <i class="bi bi-lock-fill icon"></i>
+                    <span class="text">SESIÓN CERRADA</span>
+                </div>
+             }
+        </div>
+
+        <button class="btn-logout" @onclick="GoHome" style="background-color: var(--secondary-color);">
+            <i class="bi bi-house-door-fill"></i> HOME
+        </button>
+    </header>
+
+    <main class="pos-main" style="grid-template-columns: 1fr;">
+        @if (isLoading)
+        {
+            <div class="loading-container">
+                <div class="spinner"></div>
+                <p>Cargando información de caja...</p>
+            </div>
+        }
+        else if (activeSession == null)
+        {
+            <div class="open-session-container">
+                <div class="open-card">
+                    <div style="margin-bottom: 20px;">
+                        <i class="bi bi-cash-coin" style="font-size: 3rem; color: var(--success-color);"></i>
+                        <h2 style="margin: 10px 0;">APERTURA DE CAJA</h2>
+                        <p class="text-muted">Ingresa el fondo inicial para comenzar a operar.</p>
+                    </div>
+
+                    <div class="input-group">
+                        <div class="currency-input">
+                            <span class="currency-symbol">€</span>
+                            <input type="number" @bind="openingAmount" step="0.01" min="0" placeholder="0.00" />
+                        </div>
+                    </div>
+
+                    <div class="quick-amounts">
+                        <button class="btn-quick" @onclick="() => openingAmount = 50">€50</button>
+                        <button class="btn-quick" @onclick="() => openingAmount = 100">€100</button>
+                        <button class="btn-quick" @onclick="() => openingAmount = 200">€200</button>
+                        <button class="btn-quick" @onclick="() => openingAmount = 500">€500</button>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger" style="color: #e74c3c; margin-bottom: 15px;">
+                            <i class="bi bi-exclamation-triangle-fill"></i> @errorMessage
+                        </div>
+                    }
+
+                    <button class="btn-large btn-open" @onclick="OpenSession" disabled="@isSubmitting">
+                        @if (isSubmitting) { <span><i class="bi bi-hourglass-split"></i> ABRIENDO...</span> }
+                        else { <span><i class="bi bi-check-lg"></i> ABRIR CAJA</span> }
+                    </button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="cash-dashboard">
+                <!-- Left Panel: Stats & Sales -->
+                <div class="session-panel">
+                    <div class="info-cards-row">
+                        <div class="info-card status">
+                            <div class="icon"><i class="bi bi-check-circle-fill"></i></div>
+                            <div class="details">
+                                <span class="label">ESTADO</span>
+                                <span class="value" style="color: var(--success-color);">ABIERTA</span>
+                            </div>
+                        </div>
+                        <div class="info-card time">
+                            <div class="icon"><i class="bi bi-clock-fill"></i></div>
+                            <div class="details">
+                                <span class="label">APERTURA</span>
+                                <span class="value">@activeSession.OpenedAt.ToString("HH:mm")</span>
+                            </div>
+                        </div>
+                        <div class="info-card initial">
+                            <div class="icon"><i class="bi bi-wallet-fill"></i></div>
+                            <div class="details">
+                                <span class="label">FONDO INICIAL</span>
+                                <span class="value">€@activeSession.OpeningAmount.ToString("F2")</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sales-card">
+                        <h3 class="section-title"><i class="bi bi-graph-up"></i> RESUMEN DE VENTAS</h3>
+                        <div class="summary-grid">
+                            <div class="summary-item total">
+                                <span class="label">TOTAL VENTAS</span>
+                                <span class="value">€@activeSession.TotalSales.ToString("F2")</span>
+                            </div>
+                            <div class="summary-item cash">
+                                <span class="label">EFECTIVO</span>
+                                <span class="value">€@activeSession.TotalCashSales.ToString("F2")</span>
+                            </div>
+                            <div class="summary-item card">
+                                <span class="label">TARJETA</span>
+                                <span class="value">€@activeSession.TotalCardSales.ToString("F2")</span>
+                            </div>
+                            <div class="summary-item tips">
+                                <span class="label">PROPINAS</span>
+                                <span class="value">€@activeSession.TotalTips.ToString("F2")</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="label">ÓRDENES</span>
+                                <span class="value">@activeSession.OrdersCount</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Panel: Close & History -->
+                <div class="actions-panel">
+                    <div class="action-card">
+                        <h3 class="section-title" style="color: var(--danger-color); border-color: #ffebee;">
+                            <i class="bi bi-lock-fill"></i> CIERRE DE CAJA
+                        </h3>
+                        
+                        <div class="close-form">
+                            <div class="input-group">
+                                <label>Efectivo en Caja (Contado)</label>
+                                <div class="currency-input">
+                                    <span class="currency-symbol">€</span>
+                                    <input type="number" @bind="closingAmount" step="0.01" min="0" />
+                                </div>
+                            </div>
+
+                            @if (closingAmount > 0)
+                            {
+                                var diff = CalculateDifference();
+                                <div class="difference-box">
+                                    <div class="diff-row">
+                                        <span>Esperado (Inicio + Ventas Eff):</span>
+                                        <strong>€@((activeSession.ExpectedAmount ?? 0).ToString("F2"))</strong>
+                                    </div>
+                                     <div class="diff-row">
+                                        <span>Contado:</span>
+                                        <strong>€@closingAmount.ToString("F2")</strong>
+                                    </div>
+                                    <div class="diff-row result">
+                                        <span>@(diff >= 0 ? "Sobrante" : "Faltante"):</span>
+                                        <span class="@(diff >= 0 ? "diff-positive" : "diff-negative")">
+                                            €@Math.Abs(diff).ToString("F2")
+                                        </span>
+                                    </div>
+                                </div>
+                            }
+
+                            @if (!string.IsNullOrEmpty(errorMessage))
+                            {
+                                <div class="alert alert-danger" style="color: #e74c3c;">
+                                    @errorMessage
+                                </div>
+                            }
+
+                            <button class="btn-large btn-close" @onclick="CloseSession" disabled="@(isSubmitting || closingAmount <= 0)">
+                                @(isSubmitting ? "CERRANDO..." : "CERRAR TURNOS")
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="action-card history-card">
+                        <h3 class="section-title"><i class="bi bi-clock-history"></i> HISTORIAL RECIENTE</h3>
+                        <div class="table-container">
+                            <table class="history-table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Ventas</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (sessionHistory.Any())
+                                    {
+                                        @foreach (var session in sessionHistory.Take(5))
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <div style="font-weight:bold;">@session.OpenedAt.ToString("dd/MM")</div>
+                                                    <div style="font-size:0.8em; color:var(--gray);">@session.OpenedAt.ToString("HH:mm")</div>
+                                                </td>
+                                                <td>€@session.TotalSales.ToString("F2")</td>
+                                                <td>
+                                                    <span class="badge-status @(session.Status == "open" ? "open" : "closed")">
+                                                        @(session.Status == "open" ? "ACTIVO" : "CERRADO")
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <tr><td colspan="3" class="text-center text-muted">Sin historial</td></tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </main>
+</div>
+
+@code {
+    private CashSession? activeSession;
+    private List<CashSession> sessionHistory = new();
+    private decimal openingAmount = 100;
+    private decimal closingAmount = 0;
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private string errorMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            activeSession = await ApiService.GetActiveCashSessionAsync(null);
+            sessionHistory = await ApiService.GetCashSessionsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading cash register data");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OpenSession()
+    {
+        if (openingAmount < 0)
+        {
+            errorMessage = "El monto inicial no puede ser negativo";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = "";
+
+        try
+        {
+            var sessionData = new CashSessionCreate
+            {
+                UserId = 1, 
+                OpeningAmount = openingAmount
+            };
+
+            var newSession = await ApiService.OpenCashSessionAsync(sessionData);
+            
+            if (newSession != null)
+            {
+                await LoadData();
+            }
+            else
+            {
+                errorMessage = "Error al abrir la caja";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error opening cash session");
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task CloseSession()
+    {
+        if (activeSession == null || closingAmount <= 0)
+        {
+            errorMessage = "Ingresa el monto de cierre";
+            return;
+        }
+
+        isSubmitting = true;
+        errorMessage = "";
+
+        try
+        {
+            var closeData = new CashSessionClose
+            {
+                ClosingAmount = closingAmount
+            };
+
+            var closedSession = await ApiService.CloseCashSessionAsync(activeSession.Id, closeData);
+            
+            if (closedSession != null)
+            {
+                closingAmount = 0;
+                await LoadData();
+            }
+            else
+            {
+                errorMessage = "Error al cerrar la caja";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error closing cash session");
+            errorMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private decimal CalculateDifference()
+    {
+        if (activeSession == null) return 0;
+        return closingAmount - (activeSession.ExpectedAmount ?? 0);
+    }
+
+    private void GoHome()
+    {
+        Navigation.NavigateTo("/");
+    }
+}

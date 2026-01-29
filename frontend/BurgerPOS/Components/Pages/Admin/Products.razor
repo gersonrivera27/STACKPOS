@@ -1,0 +1,360 @@
+@page "/admin/products"
+@rendermode InteractiveServer
+@using BurgerPOS.Models
+@using BurgerPOS.Services
+@using System.Net.Http.Headers
+@inject PosApiService ApiService
+@inject NavigationManager Navigation
+@inject ILogger<Products> Logger
+@inject IJSRuntime JS
+
+<div class="admin-container">
+    <div class="admin-header">
+        <div class="admin-title">
+            <h1><i class="bi bi-box-seam-fill"></i> Gestión de Productos</h1>
+        </div>
+        <div class="admin-controls">
+            <button class="btn btn-primary" @onclick="ShowCreateModal">
+                <i class="bi bi-plus-lg"></i> Nuevo Producto
+            </button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else
+    {
+        <div class="products-table-container">
+            <table class="products-table">
+                <thead>
+                    <tr>
+                        <th>Imagen</th>
+                        <th>Nombre</th>
+                        <th>Categoría</th>
+                        <th>Precio</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var product in products)
+                    {
+                        <tr>
+                            <td>
+                                @if (!string.IsNullOrEmpty(product.ImageUrl))
+                                {
+                                    <img src="@GetImageUrl(product.ImageUrl)" class="product-img-thumb" />
+                                }
+                                else
+                                {
+                                    <div class="product-img-thumb d-flex align-items-center justify-content-center">
+                                        <i class="bi bi-image text-muted"></i>
+                                    </div>
+                                }
+                            </td>
+                            <td>@product.Name</td>
+                            <td>@(GetCategoryName(product.CategoryId))</td>
+                            <td>€@product.Price.ToString("F2")</td>
+                            <td>
+                                <span class="status-badge @(product.IsAvailable ? "active" : "inactive")">
+                                    @(product.IsAvailable ? "Activo" : "Inactivo")
+                                </span>
+                            </td>
+                            <td>
+                                <button class="action-btn btn-edit" @onclick="() => EditProduct(product)">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
+                                <button class="action-btn btn-delete" @onclick="() => DeleteProduct(product)">
+                                    <i class="bi bi-trash-fill"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@if (showModal)
+{
+    <div class="modal-backdrop" @onclick="CloseModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2>@(isEditing ? "Editar Producto" : "Nuevo Producto")</h2>
+                <button class="close-btn" @onclick="CloseModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Nombre</label>
+                    <input type="text" class="form-control" @bind="currentProduct.Name" />
+                </div>
+                
+                <div class="row">
+                    <div class="col-6 form-group">
+                        <label class="form-label">Categoría</label>
+                        <select class="form-control" @bind="currentProduct.CategoryId">
+                            <option value="0">Seleccionar...</option>
+                            @foreach (var cat in categories)
+                            {
+                                <option value="@cat.Id">@cat.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-6 form-group">
+                        <label class="form-label">Precio (€)</label>
+                        <input type="number" step="0.01" class="form-control" @bind="currentProduct.Price" />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Descripción</label>
+                    <textarea class="form-control" rows="3" @bind="currentProduct.Description"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Imagen</label>
+                    <InputFile OnChange="HandleFileSelected" class="form-control" accept=".jpg,.jpeg,.png,.webp" />
+                    @if (!string.IsNullOrEmpty(imagePreview))
+                    {
+                        <img src="@imagePreview" class="img-preview" />
+                    }
+                </div>
+
+                <div class="form-group form-check">
+                    <input type="checkbox" id="chkAvailable" @bind="currentProduct.IsAvailable" />
+                    <label for="chkAvailable">Producto Disponible</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModal">Cancelar</button>
+                <button class="btn btn-primary" @onclick="SaveProduct" disabled="@isSaving">
+                    @(isSaving ? "Guardando..." : "Guardar")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showDeleteModal)
+{
+    <div class="modal-backdrop" @onclick="CloseDeleteModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2>Confirmar Eliminación</h2>
+                <button class="close-btn" @onclick="CloseDeleteModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <p>¿Está seguro de querer eliminar el producto <strong>@productToDelete?.Name</strong>?</p>
+                <p class="text-muted small">El producto pasará a estado Inactivo.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseDeleteModal">Cancelar</button>
+                <button class="btn btn-danger" @onclick="ConfirmDelete" disabled="@isDeleting">
+                    @(isDeleting ? "Eliminando..." : "Eliminar")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Product> products = new();
+    private List<Category> categories = new();
+    private bool isLoading = true;
+    private bool showModal = false;
+    private bool showDeleteModal = false;
+    private bool isEditing = false;
+    private bool isSaving = false;
+    private bool isDeleting = false;
+    
+    // Model for form
+    private ProductCreate currentProduct = new();
+    private Product? productToDelete = null;
+    private int editingId = 0;
+    private string? imagePreview = null;
+    private IBrowserFile? selectedFile = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try 
+        {
+            var pTask = ApiService.GetProductsAsync(null, includeInactive: true);
+            var cTask = ApiService.GetCategoriesAsync();
+            await Task.WhenAll(pTask, cTask);
+            
+            products = await pTask;
+            categories = await cTask;
+        }
+        catch(Exception ex)
+        {
+            Logger.LogError(ex, "Error loading admin products");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetCategoryName(int id) => categories.FirstOrDefault(c => c.Id == id)?.Name ?? "Sin Categoría";
+    
+    // Fix image URL if relative
+    private string GetImageUrl(string url)
+    {
+        if (url.StartsWith("http")) return url;
+        return $"http://localhost:8000{url}"; 
+    }
+
+    private void ShowCreateModal()
+    {
+        currentProduct = new ProductCreate { IsAvailable = true, CategoryId = categories.FirstOrDefault()?.Id ?? 0 };
+        editingId = 0;
+        isEditing = false;
+        imagePreview = null;
+        selectedFile = null;
+        showModal = true;
+    }
+
+    private void EditProduct(Product p)
+    {
+        currentProduct = new ProductCreate
+        {
+            Name = p.Name,
+            CategoryId = p.CategoryId,
+            Price = p.Price,
+            Description = p.Description,
+            ImageUrl = p.ImageUrl,
+            IsAvailable = p.IsAvailable
+        };
+        editingId = p.Id;
+        isEditing = true;
+        imagePreview = !string.IsNullOrEmpty(p.ImageUrl) ? GetImageUrl(p.ImageUrl) : null;
+        selectedFile = null;
+        showModal = true;
+    }
+
+    private void DeleteProduct(Product p)
+    {
+        productToDelete = p;
+        showDeleteModal = true;
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (productToDelete == null) return;
+        
+        isDeleting = true;
+        try
+        {
+            var success = await ApiService.DeleteProductAsync(productToDelete.Id);
+            if (success)
+            {
+                showDeleteModal = false;
+                productToDelete = null;
+                await LoadData();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", "Error al eliminar el producto");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting product");
+            await JS.InvokeVoidAsync("alert", "Ocurrió un error al eliminar");
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        productToDelete = null;
+    }
+
+    private async Task  HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        // Limit 5MB
+        if (file.Size > 5 * 1024 * 1024) 
+        {
+             await JS.InvokeVoidAsync("alert", "Imagen muy grande (Max 5MB)");
+             return;
+        }
+        
+        selectedFile = file;
+        
+        // Preview
+        var format = "image/png";
+        var resizedImage = await file.RequestImageFileAsync(format, 300, 300);
+        var buffer = new byte[resizedImage.Size];
+        await resizedImage.OpenReadStream().ReadAsync(buffer);
+        var imageData = $"data:{format};base64,{Convert.ToBase64String(buffer)}";
+        imagePreview = imageData;
+    }
+
+    private async Task SaveProduct()
+    {
+        isSaving = true;
+        try
+        {
+            // Upload image if selected
+            if (selectedFile != null)
+            {
+                var url = await ApiService.UploadImageAsync(selectedFile);
+                if (!string.IsNullOrEmpty(url))
+                {
+                    currentProduct.ImageUrl = url;
+                }
+            }
+
+            if (isEditing)
+            {
+                var update = new ProductUpdate
+                {
+                    Name = currentProduct.Name,
+                    CategoryId = currentProduct.CategoryId,
+                    Price = currentProduct.Price,
+                    Description = currentProduct.Description,
+                    ImageUrl = currentProduct.ImageUrl,
+                    IsAvailable = currentProduct.IsAvailable
+                };
+                await ApiService.UpdateProductAsync(editingId, update);
+            }
+            else
+            {
+                await ApiService.CreateProductAsync(currentProduct);
+            }
+
+            showModal = false;
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error guardando producto");
+            await JS.InvokeVoidAsync("alert", "Error al guardar");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+    }
+}

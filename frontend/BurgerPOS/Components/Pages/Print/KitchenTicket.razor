@@ -1,0 +1,192 @@
+@page "/print/kitchen/{OrderId:int}"
+@layout TicketLayout
+@using BurgerPOS.Components.Layout
+@using BurgerPOS.Models
+@using BurgerPOS.Services
+@inject PosApiService ApiService
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+
+@if (order == null)
+{
+    @if (isLoading)
+    {
+        <div class="text-center" style="padding: 20px;">Cargando comanda...</div>
+    }
+    else
+    {
+        <div class="text-center" style="padding: 20px;">Orden no encontrada</div>
+    }
+}
+else
+{
+    <div class="kitchen-ticket">
+        <!-- Header -->
+        <div class="header text-center">
+            <h1 class="bold" style="font-size: 2em; margin-bottom: 5px;">#@order.OrderNumber</h1>
+            <div class="ticket-type">
+                <span class="uppercase bold badge" style="@GetBadgeStyle(order.OrderType)">
+                    @GetOrderTypeLabel(order.OrderType)
+                </span>
+            </div>
+            <p class="timestamp">@order.CreatedAt.ToString("HH:mm") (@GetTimeAgo())</p>
+        </div>
+
+        <div class="double-divider"></div>
+        
+        @if (!string.IsNullOrEmpty(order.CustomerName))
+        {
+             <div class="customer-info text-center bold">
+                @order.CustomerName
+            </div>
+            <div class="divider"></div>
+        }
+
+        <!-- Items -->
+        <div class="items">
+            @if (order is OrderWithDetails details && details.Items != null)
+            {
+                <table class="w-100">
+                    <tbody>
+                        @foreach (var item in details.Items)
+                        {
+                            <tr class="item-row">
+                                <td width="15%" class="qty" style="vertical-align: top;">@item.Quantity</td>
+                                <td width="85%" class="prod">
+                                    <div class="prod-name">@item.ProductName</div>
+                                    
+                                    @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+                                    {
+                                        <div class="special-instruction">*** @item.SpecialInstructions ***</div>
+                                    }
+                                    
+                                    @if(item.Modifiers != null && item.Modifiers.Any())
+                                    {
+                                        @foreach(var mod in item.Modifiers)
+                                        {
+                                            <div class="modifier">+ @mod.ModifierName</div>
+                                        }
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        <div class="double-divider"></div>
+
+        <!-- Notes -->
+        @if (!string.IsNullOrEmpty(order.PaymentMethod)) // Usamos PaymentMethod como proxy de notas si hubiera, o agregamos campo Notes
+        {
+             <!-- TODO: Add specific notes field if needed -->
+        }
+        
+        <div class="footer text-center">
+            <p>--- FIN COMANDA ---</p>
+        </div>
+    </div>
+}
+
+<style>
+    .kitchen-ticket {
+        font-size: 14px; /* Larger font for kitchen */
+        line-height: 1.3;
+    }
+    
+    .badge {
+        display: inline-block;
+        padding: 5px 10px;
+        color: white; /* In thermal printer this will be black/inverted or just bordered */
+        border: 2px solid black;
+        color: black;
+        font-weight: 900;
+        font-size: 1.2em;
+    }
+    
+    .qty {
+        font-size: 1.5em;
+        font-weight: bold;
+    }
+    
+    .prod-name {
+        font-size: 1.2em;
+        font-weight: bold;
+    }
+    
+    .modifier {
+        margin-left: 10px;
+        font-size: 1em;
+    }
+    
+    .special-instruction {
+        margin-left: 10px;
+        font-weight: bold;
+        text-transform: uppercase;
+        border: 1px solid black;
+        padding: 2px;
+        display: inline-block;
+        margin-top: 2px;
+    }
+    
+    .item-row td {
+        padding-bottom: 15px;
+        border-bottom: 1px dashed #ccc;
+        padding-top: 5px;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int OrderId { get; set; }
+
+    private Order? order;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            order = await ApiService.GetOrderAsync(OrderId);
+            
+            if (order != null)
+            {
+                await Task.Delay(500); // Wait render
+                await JSRuntime.InvokeVoidAsync("print");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading kitchen ticket: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    private string GetOrderTypeLabel(string type)
+    {
+        return type switch
+        {
+            "dine_in" => "MESA",
+            "takeout" => "LLEVAR",
+            "delivery" => "DOMICILIO",
+            _ => type.ToUpper()
+        };
+    }
+    
+    private string GetBadgeStyle(string type)
+    {
+        // For thermal printer, usually we rely on bold/borders rather than colors
+        return "border: 2px solid black;";
+    }
+    
+    private string GetTimeAgo()
+    {
+        if (order == null) return "";
+        var diff = DateTime.Now - order.CreatedAt;
+        return $"Hace {(int)diff.TotalMinutes}m";
+    }
+}

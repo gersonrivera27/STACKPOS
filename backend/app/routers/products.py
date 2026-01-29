@@ -13,11 +13,12 @@ router = APIRouter()
 @router.get("", response_model=List[ProductWithCategory])
 def get_products(
     category_id: Optional[int] = None,
+    available_only: bool = True,
     conn = Depends(get_db)
 ):
     """Obtener todos los productos disponibles"""
     repo = ProductRepository(conn)
-    return repo.get_all(category_id)
+    return repo.get_all(category_id, available_only)
 
 @router.get("/{product_id}", response_model=ProductWithCategory)
 def get_product(product_id: int, conn = Depends(get_db)):

@@ -1,0 +1,236 @@
+@page "/print/receipt/{OrderId:int}"
+@layout TicketLayout
+@using BurgerPOS.Components.Layout
+@using BurgerPOS.Models
+@using BurgerPOS.Services
+@inject PosApiService ApiService
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+
+@if (order == null)
+{
+    @if (isLoading)
+    {
+        <div class="text-center" style="padding: 20px;">Cargando recibo...</div>
+    }
+    else
+    {
+        <div class="text-center" style="padding: 20px;">Orden no encontrada</div>
+    }
+}
+else
+{
+    <div class="receipt">
+        <!-- Header -->
+        <div class="header text-center">
+            <h2 class="uppercase bold">STACK POS</h2>
+            <p>123 Burger Street</p>
+            <p>Drogheda, Ireland</p>
+            <p>Tel: +353 89 123 4567</p>
+            <p>VAT: IE 12345678L</p>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Order Info -->
+        <div class="info">
+            <div class="row">
+                <span>Orden:</span>
+                <span class="bold">#@order.OrderNumber</span>
+            </div>
+            <div class="row">
+                <span>Fecha:</span>
+                <span>@order.CreatedAt.ToString("dd/MM/yyyy HH:mm")</span>
+            </div>
+            <div class="row">
+                <span>Tipo:</span>
+                <span class="uppercase">@order.OrderType</span>
+            </div>
+            @if (!string.IsNullOrEmpty(order.CustomerName))
+            {
+                <div class="row">
+                    <span>Cliente:</span>
+                    <span>@order.CustomerName</span>
+                </div>
+            }
+        </div>
+
+        <div class="double-divider"></div>
+
+        <!-- Items -->
+        <div class="items">
+            @if (order is OrderWithDetails details && details.Items != null)
+            {
+                <table class="w-100">
+                    <thead>
+                        <tr>
+                            <th class="text-left">Cant</th>
+                            <th class="text-left">Prod</th>
+                            <th class="text-right">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in details.Items)
+                        {
+                            <tr>
+                                <td width="15%" style="vertical-align: top;">@item.Quantity</td>
+                                <td width="60%">
+                                    @item.ProductName
+                                    @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+                                    {
+                                        <div style="font-size: 0.8em; font-style: italic;">* @item.SpecialInstructions</div>
+                                    }
+                                    @if(item.Modifiers != null && item.Modifiers.Any())
+                                    {
+                                        @foreach(var mod in item.Modifiers)
+                                        {
+                                            <div style="font-size: 0.8em; color: #555;">+ @mod.ModifierName</div>
+                                        }
+                                    }
+                                </td>
+                                <td width="25%" class="text-right" style="vertical-align: top;">
+                                    €@((item.UnitPrice * item.Quantity).ToString("F2"))
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Totals -->
+        <div class="totals">
+            <div class="row">
+                <span>Subtotal:</span>
+                <span>€@order.Subtotal.ToString("F2")</span>
+            </div>
+            <div class="row">
+                <span>IVA (13.5%):</span>
+                <span>€@order.Tax.ToString("F2")</span>
+            </div>
+            <div class="row bold" style="font-size: 1.2em; margin-top: 5px;">
+                <span>TOTAL:</span>
+                <span>€@order.Total.ToString("F2")</span>
+            </div>
+        </div>
+        
+        <div class="divider"></div>
+        
+        @if (payment != null)
+        {
+            <div class="payment-info">
+                 <div class="row">
+                    <span>Pago (@GetPaymentMethod(payment.PaymentType)):</span>
+                    <span>€@payment.TotalAmount.ToString("F2")</span>
+                </div>
+                 <div class="row">
+                    <span>Entregado:</span>
+                    <span>€@((payment.CashAmount + payment.CardAmount).ToString("F2"))</span>
+                </div>
+                 <div class="row">
+                    <span>Cambio:</span>
+                    <span>€@payment.ChangeAmount.ToString("F2")</span>
+                </div>
+            </div>
+            <div class="divider"></div>
+        }
+
+        <!-- Footer -->
+        <div class="footer text-center">
+            
+            <div class="payment-status @(payment != null ? "paid" : "unpaid")">
+                @(payment != null ? "✅ PAID" : "❌ UNPAID")
+                @if(payment != null)
+                {
+                    <span style="font-size: 0.8em; display:block;">Via: @GetPaymentMethod(payment.PaymentType)</span>
+                }
+            </div>
+
+            <p>*** GRACIAS POR SU VISITA ***</p>
+            <p>Síguenos en Instagram @@StackPos</p>
+            <br />
+            <p style="font-size: 0.8em;">Powered by StackPos</p>
+        </div>
+    </div>
+}
+
+<style>
+    .receipt {
+        font-size: 12px;
+        line-height: 1.4;
+    }
+    .row {
+        display: flex;
+        justify-content: space-between;
+    }
+    .payment-status {
+        font-weight: bold;
+        padding: 5px;
+        margin: 10px 0;
+        text-align: center;
+        border: 2px solid;
+    }
+    .payment-status.paid {
+        border-color: black;
+        /* Using monochrome for receipts generally */
+    }
+    .payment-status.unpaid {
+        border-color: black;
+        border-style: dashed;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int OrderId { get; set; }
+
+    private Order? order;
+    private PaymentResponse? payment;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            order = await ApiService.GetOrderAsync(OrderId);
+            // Intentar cargar info de pago
+            if (order != null && order.Status == "completed")
+            {
+                // TODO: Necesitamos endpoint para obtener pago por OrderId
+                // Por ahora simulamos o agregamos al servicio
+                // Asumiendo que agregamos ApiService.GetPaymentByOrderAsync
+                try {
+                     payment = await ApiService.GetPaymentByOrderAsync(OrderId);
+                } catch {}
+            }
+            
+            // Auto impresión (opcional, comentar para debug)
+            if (order != null)
+            {
+                await Task.Delay(500); // Esperar render
+                await JSRuntime.InvokeVoidAsync("print");
+                // await JSRuntime.InvokeVoidAsync("history.back"); // Volver atrás después de imprimir? Mejor no forzarlo
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading receipt: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    private string GetPaymentMethod(string method)
+    {
+        return method switch 
+        {
+            "cash" => "EFECTIVO",
+            "card" => "TARJETA",
+            _ => method.ToUpper()
+        };
+    }
+}

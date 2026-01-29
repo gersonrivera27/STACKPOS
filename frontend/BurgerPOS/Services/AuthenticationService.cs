@@ -87,4 +87,38 @@ public class AuthenticationService
     {
         return await _authStateProvider.GetToken();
     }
+
+    public async Task<List<User>> GetUsersForLoginAsync()
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<List<User>>("/api/auth/users-list") ?? new List<User>();
+        }
+        catch
+        {
+            return new List<User>();
+        }
+    }
+
+    public async Task<bool> LoginWithPin(int userId, string pin)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync("/api/auth/pin-login", new { user_id = userId, pin = pin });
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                if (result?.Exito == true && !string.IsNullOrEmpty(result.Token))
+                {
+                    await _authStateProvider.MarkUserAsAuthenticated(result.Token);
+                    return true;
+                }
+            }
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

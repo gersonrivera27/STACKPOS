@@ -46,6 +46,10 @@ class LoginRequest(BaseModel):
             raise ValueError('Username o email es requerido')
         return v.strip()
 
+class PinLoginRequest(BaseModel):
+    user_id: int
+    pin: str
+
 class UserLogin(BaseModel):
     """Schema legacy - mantener por compatibilidad"""
     username: str

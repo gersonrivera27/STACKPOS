@@ -60,6 +60,8 @@ class OrderCreate(BaseModel):
     notes: Optional[str] = None
     table_id: Optional[int] = None
     payment_method: Optional[PaymentMethod] = None
+    status: Optional[OrderStatus] = None
+    user_id: Optional[int] = None
 
 class OrderUpdate(BaseModel):
     """Modelo para actualizar orden"""
@@ -81,12 +83,14 @@ class OrderBase(BaseModel):
     payment_method: Optional[str] = None
     notes: Optional[str] = None
     table_id: Optional[int] = None
+    user_id: Optional[int] = None
 
 class Order(OrderBase):
     """Modelo completo de orden"""
     id: int
     created_at: datetime
     completed_at: Optional[datetime] = None
+    waiter_name: Optional[str] = None
     
     class Config:
         from_attributes = True
