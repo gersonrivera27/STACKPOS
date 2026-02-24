@@ -3,7 +3,7 @@ Router de autenticación con JWT
 Sistema completo de login, perfil y verificación
 """
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from typing import Annotated, List
 
 from ..database import get_db
@@ -12,8 +12,10 @@ from ..security import (
     autenticar_usuario,
     crear_token,
     obtener_usuario_actual,
-    verificar_rol
+    verificar_rol,
+    verificar_password
 )
+from ..core.rabbitmq import mq, get_client_ip
 
 router = APIRouter()
 
@@ -23,31 +25,71 @@ router = APIRouter()
 
 @router.post("/login", response_model=LoginResponse)
 async def login(
+    request: Request,
     datos: LoginRequest,
     conn = Depends(get_db)
 ):
     """
     Iniciar sesión con username o email
-    
+
     Returns:
         LoginResponse con token JWT y datos del usuario
     """
+    # Obtener IP del cliente
+    client_ip = get_client_ip(request)
+
     # Autenticar usuario
     usuario = autenticar_usuario(
-        conn, 
-        datos.username_or_email, 
+        conn,
+        datos.username_or_email,
         datos.password
     )
-    
+
     if not usuario:
+        # 🔥 EVENTO DE SEGURIDAD: Login fallido
+        await mq.publish_security_event(
+            event="login_failed",
+            username=datos.username_or_email,
+            ip_address=client_ip,
+            reason="Invalid credentials",
+            severity="MEDIUM",
+            metadata={
+                "attempted_username": datos.username_or_email,
+                "user_agent": request.headers.get('user-agent', 'Unknown')
+            }
+        )
+
+        # También publicar a audit.auth
+        await mq.publish_auth_event(
+            event="login_failed",
+            username=datos.username_or_email,
+            ip_address=client_ip,
+            success=False,
+            metadata={
+                "reason": "Invalid credentials"
+            }
+        )
+
         return LoginResponse(
             exito=False,
             mensaje="Credenciales incorrectas"
         )
-    
+
+    # 🔥 EVENTO: Login exitoso
+    await mq.publish_auth_event(
+        event="login_success",
+        username=usuario['username'],
+        user_id=usuario['id'],
+        ip_address=client_ip,
+        success=True,
+        metadata={
+            "role": usuario['role']
+        }
+    )
+
     # Generar token JWT
     token = crear_token(usuario)
-    
+
     # Preparar respuesta
     usuario_response = UsuarioResponse(
         id=usuario['id'],
@@ -57,7 +99,7 @@ async def login(
         role=usuario['role'],
         is_active=usuario['is_active']
     )
-    
+
     return LoginResponse(
         exito=True,
         mensaje="Login exitoso",
@@ -108,8 +150,11 @@ async def verificar_token(
     }
 
 @router.get("/users-list", response_model=List[UsuarioResponse])
-def listar_usuarios_login(conn = Depends(get_db)):
-    """Listar usuarios activos para selector de login (PIN)"""
+def listar_usuarios_login(
+    conn = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual)
+):
+    """Listar usuarios activos. Requiere autenticación."""
     cursor = conn.cursor()
     cursor.execute("SELECT id, username, email, full_name, role, is_active FROM users WHERE is_active = TRUE ORDER BY full_name")
     users = cursor.fetchall()
@@ -121,21 +166,64 @@ def listar_usuarios_login(conn = Depends(get_db)):
     ]
 
 @router.post("/pin-login", response_model=LoginResponse)
-def login_con_pin(datos: PinLoginRequest, conn = Depends(get_db)):
+async def login_con_pin(
+    request: Request,
+    datos: PinLoginRequest,
+    conn = Depends(get_db)
+):
     """Login usando PIN"""
+    client_ip = get_client_ip(request)
+
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE id = %s AND pin = %s AND is_active = TRUE", (datos.user_id, datos.pin))
+    # First find user by ID only
+    cursor.execute("SELECT * FROM users WHERE id = %s AND is_active = TRUE", (datos.user_id,))
     usuario = cursor.fetchone()
-    
-    if not usuario:
+
+    # Then verify PIN hash
+    is_valid_pin = False
+    if usuario and usuario.get('pin'):
+        # For backwards compatibility during transition, we might have unhashed pins.
+        # But we assume the hash_pins script runs correctly.
+        pin_hash = usuario['pin']
+        if str(pin_hash).startswith("$2"):
+            is_valid_pin = verificar_password(datos.pin, pin_hash)
+        else:
+            # Fallback if somehow there's still a plaintext pin
+            is_valid_pin = (datos.pin == pin_hash)
+
+    if not usuario or not is_valid_pin:
+        # 🔥 EVENTO: PIN login fallido
+        await mq.publish_security_event(
+            event="pin_login_failed",
+            username=f"user_id_{datos.user_id}",
+            ip_address=client_ip,
+            reason="Invalid PIN or User not found",
+            severity="MEDIUM",
+            metadata={
+                "user_id": datos.user_id
+            }
+        )
+
         return LoginResponse(
             exito=False,
             mensaje="PIN incorrecto"
         )
-        
+
+    # 🔥 EVENTO: PIN login exitoso
+    await mq.publish_auth_event(
+        event="pin_login_success",
+        username=usuario['username'],
+        user_id=usuario['id'],
+        ip_address=client_ip,
+        success=True,
+        metadata={
+            "login_method": "PIN"
+        }
+    )
+
     # Generar token
     token = crear_token(usuario)
-    
+
     usuario_response = UsuarioResponse(
         id=usuario['id'],
         username=usuario['username'],
@@ -144,7 +232,7 @@ def login_con_pin(datos: PinLoginRequest, conn = Depends(get_db)):
         role=usuario['role'],
         is_active=usuario['is_active']
     )
-    
+
     return LoginResponse(
         exito=True,
         mensaje="Login exitoso",

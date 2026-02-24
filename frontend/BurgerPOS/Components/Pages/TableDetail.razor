@@ -1,0 +1,233 @@
+@page "/tables/{TableId:int}"
+@using BurgerPOS.Models
+@using BurgerPOS.Services
+@using BurgerPOS.Components.Shared
+@inject PosApiService ApiService
+@inject NavigationManager Navigation
+@inject ILogger<TableDetail> Logger
+
+<div class="table-detail">
+    <div class="detail-header">
+        <div>
+            <div class="eyebrow">Mesa</div>
+            <div class="title">#@tableNumber</div>
+            @if (order != null)
+            {
+                <span class="badge @(order.Status)">@order.Status.ToUpper()</span>
+                <span class="badge payment">@(HasPayment(order) ? "PAID" : "UNPAID")</span>
+            }
+            else
+            {
+                <span class="badge free">LIBRE</span>
+            }
+        </div>
+        <div class="actions">
+            <button class="btn ghost" @onclick="Back">← Mesas</button>
+            <button class="btn ghost" @onclick="Reload">🔄</button>
+        </div>
+    </div>
+
+    <div class="detail-body">
+        <div class="order-pane">
+            @if (order == null)
+            {
+                <div class="empty">
+                    <p>No hay orden activa en esta mesa.</p>
+                    <button class="btn primary" @onclick="NewOrder">Nueva orden</button>
+                </div>
+            }
+            else
+            {
+                <div class="order-meta">
+                    <div>
+                        <div class="muted">Cliente</div>
+                        <div class="value">@order.CustomerName</div>
+                    </div>
+                    <div>
+                        <div class="muted">Tipo</div>
+                        <div class="value">@order.OrderType.ToUpper()</div>
+                    </div>
+                    <div>
+                        <div class="muted">Creada</div>
+                        <div class="value">@order.CreatedAt.ToString("dd/MM HH:mm")</div>
+                    </div>
+                </div>
+
+                <div class="items-list">
+                    @if (order is OrderWithDetails details && details.Items.Any())
+                    {
+                        @foreach (var item in details.Items)
+                        {
+                            <div class="item-row">
+                                <div class="qty">@item.Quantity</div>
+                                <div class="name">@item.ProductName</div>
+                                <div class="price">€@item.Subtotal.ToString("F2")</div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+                            {
+                                <div class="note">⚠️ @item.SpecialInstructions</div>
+                            }
+                        }
+                    }
+                    else
+                    {
+                        <div class="empty small">Sin items</div>
+                    }
+                </div>
+
+                <div class="totals">
+                    <div class="row"><span>Subtotal</span><span>€@order.Subtotal.ToString("F2")</span></div>
+                    <div class="row"><span>Impuesto</span><span>€@order.Tax.ToString("F2")</span></div>
+                    <div class="row total"><span>Total</span><span>€@order.Total.ToString("F2")</span></div>
+                </div>
+            }
+        </div>
+
+        <div class="action-pane">
+            @if (order != null)
+            {
+                <button class="btn primary block" @onclick="AddItems">➕ Añadir items</button>
+                <button class="btn outline block" @onclick="OpenReceipt">🧾 Ver ticket</button>
+                <button class="btn success block" @onclick="OpenPayment" disabled="@(order == null)">💰 Cobrar</button>
+                <button class="btn ghost block" @onclick="FreeTable" disabled="@(order != null && !HasPayment(order))">Liberar mesa</button>
+            }
+            else
+            {
+                <button class="btn primary block" @onclick="NewOrder">Crear orden</button>
+            }
+        </div>
+    </div>
+</div>
+
+@if (showPayment && order != null)
+{
+    <PaymentModal Subtotal="order.Subtotal"
+                  Tax="order.Tax"
+                  Total="order.Total"
+                  OrderId="order.Id"
+                  OnClose="ClosePayment"
+                  OnPaymentConfirmed="HandlePayment" />
+}
+
+<style>
+    .table-detail { padding: 16px; }
+    .detail-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+    .eyebrow { text-transform: uppercase; font-size:0.8rem; color:#777; letter-spacing:1px; }
+    .title { font-size:2rem; font-weight:800; }
+    .badge { display:inline-block; padding:6px 10px; border-radius:8px; font-size:0.8rem; margin-right:6px; color:#fff; }
+    .badge.pending, .badge.preparing { background:#3498db; }
+    .badge.ready { background:#2ecc71; color:#0b3d2e; }
+    .badge.completed { background:#27ae60; }
+    .badge.free { background:#95a5a6; }
+    .badge.payment { background:#8e44ad; }
+    .actions { display:flex; gap:8px; }
+    .btn { border:none; border-radius:10px; padding:10px 14px; cursor:pointer; font-weight:700; transition:transform .1s, box-shadow .1s; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn.primary { background:#d4a017; color:#fff; }
+    .btn.success { background:#2ecc71; color:#0b3d2e; }
+    .btn.outline { background:#fff; border:1px solid #d4a017; color:#d4a017; }
+    .btn.ghost { background:#f5f5f5; color:#555; }
+    .btn.block { width:100%; margin-top:8px; }
+    .detail-body { display:grid; grid-template-columns: 2fr 1fr; gap:16px; }
+    .order-pane { background:#fff; border-radius:12px; padding:14px; box-shadow:0 6px 16px rgba(0,0,0,0.08); min-height:400px; }
+    .action-pane { background:#fff; border-radius:12px; padding:14px; box-shadow:0 6px 16px rgba(0,0,0,0.08); }
+    .order-meta { display:grid; grid-template-columns: repeat(3,1fr); gap:10px; margin-bottom:10px; }
+    .muted { color:#777; font-size:0.85rem; }
+    .value { font-weight:700; }
+    .items-list { border:1px solid #eee; border-radius:10px; max-height:340px; overflow:auto; padding:10px; margin-bottom:12px; }
+    .item-row { display:grid; grid-template-columns: 40px 1fr 90px; align-items:center; padding:6px 0; border-bottom:1px dashed #eee; }
+    .item-row:last-child { border-bottom:none; }
+    .qty { font-weight:800; color:#555; }
+    .price { text-align:right; font-weight:700; }
+    .note { font-size:0.85rem; color:#c0392b; margin:-4px 0 8px 40px; }
+    .totals { border-top:1px solid #eee; padding-top:8px; }
+    .totals .row { display:flex; justify-content:space-between; margin:4px 0; font-weight:600; }
+    .totals .total { font-size:1.1rem; }
+    .empty { text-align:center; padding:30px 10px; color:#777; }
+    .empty.small { padding:10px; }
+</style>
+
+@code {
+    [Parameter] public int TableId { get; set; }
+
+    private Table? table;
+    private OrderWithDetails? order;
+    private int tableNumber;
+    private bool showPayment = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        var list = await ApiService.GetTablesAsync();
+        table = list.FirstOrDefault(t => t.Id == TableId);
+        tableNumber = table?.TableNumber ?? TableId;
+
+        if (table?.ActiveOrder != null)
+        {
+            var full = await ApiService.GetOrderAsync(table.ActiveOrder.Id);
+            order = full;
+        }
+        else
+        {
+            order = null;
+        }
+        StateHasChanged();
+    }
+
+    private void Back() => Navigation.NavigateTo("/tables");
+
+    private void NewOrder() => Navigation.NavigateTo($"/order/create?tableId={TableId}");
+
+    private void AddItems()
+    {
+        if (order != null)
+            Navigation.NavigateTo($"/order/create?tableId={TableId}&orderId={order.Id}");
+    }
+
+    private void OpenReceipt()
+    {
+        if (order != null)
+            Navigation.NavigateTo($"/print/receipt/{order.Id}");
+    }
+
+    private void OpenPayment() => showPayment = true;
+    private void ClosePayment() => showPayment = false;
+
+    private async Task HandlePayment(PaymentModal.PaymentResult result)
+    {
+        try
+        {
+            // Crear pago
+            var pay = await ApiService.CreatePaymentAsync(new PaymentCreate {
+                OrderId = result.OrderId,
+                PaymentType = result.PaymentType,
+                CashAmount = result.CashAmount,
+                CardAmount = result.CardAmount,
+                TipAmount = result.TipAmount
+            });
+
+            // Marcar orden como completada y liberar mesa
+            await ApiService.UpdateOrderStatusAsync(result.OrderId, "completed");
+            await ApiService.UpdateTableStatusAsync(TableId, false);
+
+            showPayment = false;
+            await Reload();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al cobrar mesa");
+        }
+    }
+
+    private async Task FreeTable()
+    {
+        await ApiService.UpdateTableStatusAsync(TableId, false);
+        await Reload();
+    }
+
+    private bool HasPayment(Order o) => o.HasPayment || !string.IsNullOrEmpty(o.PaymentMethod);
+}

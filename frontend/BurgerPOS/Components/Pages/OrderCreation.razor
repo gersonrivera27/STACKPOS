@@ -1,4 +1,5 @@
 @page "/order/create"
+@page "/order/create/{OrderId:int}"
 @page "/order/{CustomerId:int}/{OrderTypeStr}/{PhoneLine:int}"
 @rendermode InteractiveServer
 @using BurgerPOS.Models
@@ -21,7 +22,14 @@
         </div>
         
         <div class="order-info-center">
-            <span class="order-title">LÍNEA @PhoneLine - @GetOrderTypeLabel().ToUpper()</span>
+            @if (OrderId.HasValue)
+            {
+                <span class="order-title editing-badge">✏️ EDITANDO ORDEN #@OrderId</span>
+            }
+            else
+            {
+                <span class="order-title">LÍNEA @PhoneLine - @GetOrderTypeLabel().ToUpper()</span>
+            }
             @if (customer != null)
             {
                 <span class="customer-name"> | 👤 @customer.Name</span>
@@ -100,6 +108,15 @@
                                             }
                                         </div>
                                     }
+                                    @if (item.SelectedModifiers.Any())
+                                    {
+                                        <div class="product-modifiers">
+                                            @foreach (var mod in item.SelectedModifiers)
+                                            {
+                                                <div>+ @mod.Name</div>
+                                            }
+                                        </div>
+                                    }
                                 </td>
                                 <td class="col-cost">@item.Subtotal.ToString("F2")</td>
                             </tr>
@@ -124,6 +141,54 @@
                 </button>
             </div>
 
+            @if (OrderId.HasValue)
+            {
+                var added = GetAddedItems().ToList();
+                var removed = GetRemovedItems().ToList();
+                var modified = GetModifiedItems().ToList();
+                if (added.Any() || removed.Any() || modified.Any())
+                {
+                    <div class="diff-panel">
+                        <div class="diff-title">Cambios para esta orden</div>
+                        @if (added.Any())
+                        {
+                            <div class="diff-section add">
+                                <div class="diff-label">Añadidos</div>
+                                @foreach (var a in added)
+                                {
+                                    <div class="diff-row">+ @a.Quantity x @a.ProductName @if(!string.IsNullOrEmpty(a.SpecialInstructions)){<span class="note">(@a.SpecialInstructions)</span>}</div>
+                                }
+                            </div>
+                        }
+                        @if (modified.Any())
+                        {
+                            <div class="diff-section mod">
+                                <div class="diff-label">Modificados</div>
+                                @foreach (var m in modified)
+                                {
+                                    <div class="diff-row">~ @m.New.Quantity x @m.New.ProductName
+                                        @if(m.Old.Quantity != m.New.Quantity){<span class="note">(antes @m.Old.Quantity)</span>}
+                                        @if(m.Old.SpecialInstructions != m.New.SpecialInstructions){
+                                            <span class="note">nota: @m.New.SpecialInstructions</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                        @if (removed.Any())
+                        {
+                            <div class="diff-section del">
+                                <div class="diff-label">Eliminados</div>
+                                @foreach (var r in removed)
+                                {
+                                    <div class="diff-row">- @r.Quantity x @r.ProductName @if(!string.IsNullOrEmpty(r.SpecialInstructions)){<span class="note">(@r.SpecialInstructions)</span>}</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            }
+
             <!-- Order Summary -->
             <div class="order-summary-box">
                 <div class="summary-line">
@@ -140,7 +205,7 @@
             <div class="final-actions">
                 <button class="btn-clear" @onclick="ClearCart">CANCELAR</button>
                 <button class="btn-kitchen" @onclick="SendToKitchen" disabled="@isSubmitting">
-                    COCINA
+                    @(OrderId.HasValue ? "🔄 ACTUALIZAR COCINA" : "COCINA")
                 </button>
                 <button class="btn-confirm" @onclick="ConfirmOrder" disabled="@isSubmitting">
                     PAGAR
@@ -164,6 +229,22 @@
     </div>
 </div>
 
+<style>
+    .diff-panel { background:#faf5e6; border:1px dashed #d4a017; border-radius:10px; padding:10px; margin:10px 0; }
+    .diff-title { font-weight:800; margin-bottom:6px; color:#8a6d1d; }
+    .diff-section { margin-bottom:6px; }
+    .diff-label { font-weight:700; font-size:0.9rem; }
+    .diff-row { margin-left:8px; font-size:0.9rem; }
+    .diff-section.add .diff-label { color:#1e8449; }
+    .diff-section.del .diff-label { color:#c0392b; }
+    .diff-section.mod .diff-label { color:#2980b9; }
+    .diff-row .note { color:#555; margin-left:4px; font-style:italic; }
+    .editing-badge { background:#ffeeba; color:#856404; padding:4px 10px; border-radius:8px; font-weight:800; }
+    .modifiers-list { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:15px; }
+    .modifier-btn { padding:8px 12px; border:1px solid #ccc; border-radius:5px; background:#fff; cursor:pointer; }
+    .modifier-btn.selected { background:#28a745; color:white; border-color:#28a745; }
+</style>
+
 <!-- Comment Modal -->
 @if (showCommentModal && editingCartItem != null)
 {
@@ -176,16 +257,16 @@
             <div class="modal-body">
                 <p class="modal-hint">Agrega instrucciones especiales (una por línea):</p>
                 
-                <!-- Quick Modifiers -->
-                <div class="quick-modifiers">
-                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Sin pepinillos")'>Sin pepinillos</button>
-                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Sin queso")'>Sin queso</button>
-                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Sin cebolla")'>Sin cebolla</button>
-                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Sin tomate")'>Sin tomate</button>
-                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Bien cocido")'>Bien cocido</button>
-                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Término medio")'>Término medio</button>
-                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Extra queso")'>Extra queso</button>
-                    <button class="quick-mod-btn" @onclick='() => AddQuickModifier("Extra bacon")'>Extra bacon</button>
+                <!-- Modifiers -->
+                <div class="modifiers-list">
+                    @foreach (var modifier in availableModifiers.Where(m => m.IsActive))
+                    {
+                        bool isSelected = tempSelectedModifiers.Any(m => m.Id == modifier.Id);
+                        <button class="modifier-btn @(isSelected ? "selected" : "")" 
+                                @onclick="() => ToggleModifier(modifier)">
+                            @modifier.Name (+€@modifier.Price.ToString("F2"))
+                        </button>
+                    }
                 </div>
 
                 <textarea class="comment-textarea" 
@@ -217,13 +298,17 @@
     [Parameter] public int CustomerId { get; set; }
     [Parameter] public string OrderTypeStr { get; set; } = "takeout";
     [Parameter] public int PhoneLine { get; set; }
-    [SupplyParameterFromQuery] public int? TableId { get; set; }
+    [Parameter] public int? OrderId { get; set; }
+    private int? TableId;
 
     private Customer? customer;
+    private List<Modifier> availableModifiers = new();
+    private List<Modifier> tempSelectedModifiers = new();
     private List<Category> categories = new();
     private List<Product> products = new();
     private List<Product> filteredProducts = new();
     private List<CartItem> cart = new();
+    private List<CartItem> originalCart = new();
     private int? selectedCategoryId;
     private string orderNotes = "";
     private bool isLoadingProducts = false;
@@ -249,6 +334,14 @@
     {
         try
         {
+            // Parse query string manually (SupplyParameterFromQuery doesn't work with legacy Router)
+            var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+            var queryParams = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+            if (queryParams.TryGetValue("tableId", out var tableIdVal) && int.TryParse(tableIdVal, out int tid))
+                TableId = tid;
+            if (!OrderId.HasValue && queryParams.TryGetValue("orderId", out var orderIdVal) && int.TryParse(orderIdVal, out int oid))
+                OrderId = oid;
+
             // Get Current User (Waiter)
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             var user = authState.User;
@@ -265,7 +358,7 @@
             // Generate ticket number once
             ticketNumber = new Random().Next(1000, 9999);
 
-            Logger.LogInformation("Iniciando OrderCreation para Cliente {CustomerId}", CustomerId);
+            Logger.LogInformation("Iniciando OrderCreation para Cliente {CustomerId}, OrderId={OrderId}, TableId={TableId}", CustomerId, OrderId, TableId);
             
             // If TableId is present, force Dine In
             if (TableId.HasValue)
@@ -308,11 +401,39 @@
             // Load all products
             products = await ApiService.GetProductsAsync();
 
+            // Load all available modifiers
+            availableModifiers = await ApiService.GetModifiersAsync();
+
             // Select first category by default
             if (categories.Any())
             {
                 selectedCategoryId = categories.First().Id;
                 FilterProducts();
+            }
+
+            // Si se está editando una orden existente, cargarla en el carrito
+            if (OrderId.HasValue)
+            {
+                var existing = await ApiService.GetOrderAsync(OrderId.Value);
+                if (existing != null)
+                {
+                    OrderTypeStr = existing.OrderType;
+                    if (existing.TableId.HasValue)
+                        TableId = existing.TableId;
+
+                    cart = existing.Items.Select(i => new CartItem
+                    {
+                        OrderItemId = i.Id,
+                        ProductId = i.ProductId,
+                        ProductName = i.ProductName ?? $"Producto {i.ProductId}",
+                        UnitPrice = i.UnitPrice,
+                        Quantity = i.Quantity,
+                        SpecialInstructions = i.SpecialInstructions,
+                        SelectedModifiers = i.Modifiers.Select(m => new Modifier { Id = m.ModifierId, Name = m.ModifierName, Price = m.AdditionalPrice }).ToList()
+                    }).ToList();
+
+                    originalCart = cart.Select(CloneCartItem).ToList();
+                }
             }
         }
         catch (Exception ex)
@@ -359,40 +480,73 @@
         {
             Logger.LogInformation("Enviando a cocina para {CustomerName}", customer.Name);
 
-            var orderData = new OrderCreate
+            int targetOrderId;
+
+            if (OrderId.HasValue)
             {
-                CustomerName = customer.Name,
-                OrderType = OrderTypeStr.ToLower(),
-                Items = cart.Select(item => new OrderItemCreate
+                // Actualizar orden existente con diffs
+                var update = BuildOrderItemsUpdate();
+                var updated = await ApiService.UpdateOrderItemsAsync(OrderId.Value, update);
+                if (updated == null)
                 {
-                    ProductId = item.ProductId,
-                    Quantity = item.Quantity,
-                    SpecialInstructions = item.SpecialInstructions
-                }).ToList(),
-                Notes = orderNotes,
-                TableId = TableId,
-                UserId = currentUserId,
-                PaymentMethod = null,
-                Status = "pending"
-            };
-
-            var createdOrder = await ApiService.CreateOrderAsync(orderData);
-
-            if (createdOrder != null)
-            {
-                Logger.LogInformation("Orden enviada a cocina: {OrderNumber}", createdOrder.OrderNumber);
-                successMessage = $"🍳 Orden {createdOrder.OrderNumber} enviada a cocina!";
-                StateHasChanged();
-                
-                await PrintKitchenTicket(createdOrder.Id);
-                
-                await Task.Delay(1500);
-                Navigation.NavigateTo("/");
+                    errorMessage = "No se pudo actualizar la orden.";
+                    return;
+                }
+                targetOrderId = updated.Id;
+                originalCart = cart.Select(CloneCartItem).ToList();
             }
             else
             {
-                errorMessage = "Error al enviar a cocina. Por favor intenta de nuevo.";
+                var orderData = new OrderCreate
+                {
+                    CustomerName = customer.Name,
+                    OrderType = OrderTypeStr.ToLower(),
+                    Items = cart.Select(item => new OrderItemCreate
+                    {
+                        ProductId = item.ProductId,
+                        Quantity = item.Quantity,
+                        SpecialInstructions = item.SpecialInstructions,
+                        ModifierIds = item.SelectedModifiers.Select(m => m.Id).ToList()
+                    }).ToList(),
+                    Notes = orderNotes,
+                    TableId = TableId,
+                    UserId = currentUserId,
+                    PaymentMethod = null,
+                    Status = "pending"
+                };
+
+                var createdOrder = await ApiService.CreateOrderAsync(orderData);
+                if (createdOrder == null)
+                {
+                    errorMessage = "Error al enviar a cocina. Por favor intenta de nuevo.";
+                    return;
+                }
+                targetOrderId = createdOrder.Id;
+                OrderId = targetOrderId;
+                originalCart = cart.Select(CloneCartItem).ToList();
             }
+
+            Logger.LogInformation("Orden enviada/actualizada: {OrderId}", targetOrderId);
+            successMessage = "🍳 Orden enviada a cocina";
+            StateHasChanged();
+
+            await PrintKitchenTicket(targetOrderId);
+
+            // Ticket de cambios para cocina (solo si hay diffs y es edición)
+            if (OrderId.HasValue)
+            {
+                var added = GetAddedItems().ToList();
+                var removed = GetRemovedItems().ToList();
+                var modified = GetModifiedItems().ToList();
+                if (added.Any() || removed.Any() || modified.Any())
+                {
+                    await PrintDiffTicket($"Mesa {TableId ?? 0} - Cambios", added, removed, modified);
+                }
+            }
+
+            await Task.Delay(1200);
+            var dest = TableId.HasValue ? $"/tables/{TableId}" : "/tables";
+            Navigation.NavigateTo(dest);
         }
         catch (Exception ex)
         {
@@ -428,37 +582,54 @@
 
         try
         {
-            Logger.LogInformation("Creando orden para pago: {CustomerName}", customer.Name);
+            Logger.LogInformation("Confirmando orden para pago: {CustomerName}", customer.Name);
 
-            // Primero crear la orden con estado "pending"
-            var orderData = new OrderCreate
+            if (OrderId.HasValue)
             {
-                CustomerName = customer.Name,
-                OrderType = OrderTypeStr.ToLower(),
-                Items = cart.Select(item => new OrderItemCreate
+                var update = BuildOrderItemsUpdate();
+                var updated = await ApiService.UpdateOrderItemsAsync(OrderId.Value, update);
+                if (updated == null)
                 {
-                    ProductId = item.ProductId,
-                    Quantity = item.Quantity,
-                    SpecialInstructions = item.SpecialInstructions
-                }).ToList(),
-                Notes = orderNotes,
-                TableId = TableId,
-                UserId = currentUserId,
-                PaymentMethod = null,
-                Status = "pending"
-            };
-
-            var createdOrder = await ApiService.CreateOrderAsync(orderData);
-
-            if (createdOrder != null)
-            {
-                Logger.LogInformation("Orden creada: {OrderNumber}, abriendo modal de pago", createdOrder.OrderNumber);
-                pendingOrderId = createdOrder.Id;
+                    errorMessage = "No se pudo actualizar la orden.";
+                    return;
+                }
+                pendingOrderId = updated.Id;
                 showPaymentModal = true;
+                originalCart = cart.Select(CloneCartItem).ToList();
             }
             else
             {
-                errorMessage = "Error al crear la orden. Por favor intenta de nuevo.";
+                var orderData = new OrderCreate
+                {
+                    CustomerName = customer.Name,
+                    OrderType = OrderTypeStr.ToLower(),
+                    Items = cart.Select(item => new OrderItemCreate
+                    {
+                        ProductId = item.ProductId,
+                        Quantity = item.Quantity,
+                        SpecialInstructions = item.SpecialInstructions,
+                        ModifierIds = item.SelectedModifiers.Select(m => m.Id).ToList()
+                    }).ToList(),
+                    Notes = orderNotes,
+                    TableId = TableId,
+                    UserId = currentUserId,
+                    PaymentMethod = null,
+                    Status = "pending"
+                };
+
+                var createdOrder = await ApiService.CreateOrderAsync(orderData);
+
+                if (createdOrder != null)
+                {
+                    pendingOrderId = createdOrder.Id;
+                    OrderId = createdOrder.Id;
+                    showPaymentModal = true;
+                    originalCart = cart.Select(CloneCartItem).ToList();
+                }
+                else
+                {
+                    errorMessage = "Error al crear la orden. Por favor intenta de nuevo.";
+                }
             }
         }
         catch (Exception ex)
@@ -503,6 +674,18 @@
                 
                 showPaymentModal = false;
                 
+                // Ticket de cambios (si edición)
+                if (OrderId.HasValue)
+                {
+                    var added = GetAddedItems().ToList();
+                    var removed = GetRemovedItems().ToList();
+                    var modified = GetModifiedItems().ToList();
+                    if (added.Any() || removed.Any() || modified.Any())
+                    {
+                        await PrintDiffTicket($"Mesa {TableId ?? 0} - Cambios", added, removed, modified);
+                    }
+                }
+                
                 // Mostrar mensaje de éxito con el cambio si aplica
                 if (paymentResponse.ChangeAmount > 0)
                 {
@@ -535,7 +718,10 @@
 
     private void CancelOrder()
     {
-        Navigation.NavigateTo("/");
+        if (TableId.HasValue)
+            Navigation.NavigateTo($"/tables/{TableId}");
+        else
+            Navigation.NavigateTo("/");
     }
 
     private void SelectCategory(int categoryId)
@@ -559,7 +745,8 @@
         // Busca si ya existe el mismo producto SIN modificadores
         var existingItem = cart.FirstOrDefault(i => 
             i.ProductId == product.Id && 
-            string.IsNullOrEmpty(i.SpecialInstructions));
+            string.IsNullOrEmpty(i.SpecialInstructions) && 
+            !i.SelectedModifiers.Any());
 
         if (existingItem != null)
         {
@@ -631,6 +818,7 @@
     {
         editingCartItem = item;
         tempComment = item.SpecialInstructions ?? "";
+        tempSelectedModifiers = new List<Modifier>(item.SelectedModifiers);
         showCommentModal = true;
         StateHasChanged();
     }
@@ -640,16 +828,16 @@
         showCommentModal = false;
         editingCartItem = null;
         tempComment = "";
+        tempSelectedModifiers.Clear();
         StateHasChanged();
     }
 
-    private void AddQuickModifier(string modifier)
+    private void ToggleModifier(Modifier modifier)
     {
-        if (!string.IsNullOrEmpty(tempComment) && !tempComment.EndsWith("\n"))
-        {
-            tempComment += "\n";
-        }
-        tempComment += modifier;
+        if (tempSelectedModifiers.Any(m => m.Id == modifier.Id))
+            tempSelectedModifiers.RemoveAll(m => m.Id == modifier.Id);
+        else
+            tempSelectedModifiers.Add(modifier);
         StateHasChanged();
     }
 
@@ -658,8 +846,91 @@
         if (editingCartItem != null)
         {
             editingCartItem.SpecialInstructions = tempComment.Trim();
+            editingCartItem.SelectedModifiers = new List<Modifier>(tempSelectedModifiers);
         }
         CloseCommentModal();
+    }
+
+    // ===== Helpers para edición de órdenes existentes =====
+    private OrderItemsUpdate BuildOrderItemsUpdate()
+    {
+        var update = new OrderItemsUpdate();
+
+        // Removidos: estaban antes y ya no están
+        var removed = originalCart.Where(o => o.OrderItemId.HasValue && !cart.Any(c => c.OrderItemId == o.OrderItemId)).ToList();
+        update.RemoveItemIds.AddRange(removed.Select(r => r.OrderItemId!.Value));
+
+        // Modificados: qty o nota cambió -> eliminar y reinsertar como nuevo
+        var modified = originalCart.Where(o =>
+            o.OrderItemId.HasValue &&
+            cart.Any(c => {
+                if (c.OrderItemId != o.OrderItemId) return false;
+                bool modsChanged = string.Join(",", c.SelectedModifiers.Select(sm => sm.Id).OrderBy(id => id)) != 
+                                   string.Join(",", o.SelectedModifiers.Select(sm => sm.Id).OrderBy(id => id));
+                return c.Quantity != o.Quantity || c.SpecialInstructions != o.SpecialInstructions || modsChanged;
+            })
+        ).ToList();
+        update.RemoveItemIds.AddRange(modified.Select(m => m.OrderItemId!.Value));
+        foreach (var m in modified)
+        {
+            var current = cart.First(c => c.OrderItemId == m.OrderItemId);
+            update.AddItems.Add(new OrderItemCreate
+            {
+                ProductId = current.ProductId,
+                Quantity = current.Quantity,
+                SpecialInstructions = current.SpecialInstructions,
+                ModifierIds = current.SelectedModifiers.Select(sm => sm.Id).ToList()
+            });
+        }
+
+        // Nuevos: sin OrderItemId
+        var added = cart.Where(c => !c.OrderItemId.HasValue).ToList();
+        foreach (var a in added)
+        {
+            update.AddItems.Add(new OrderItemCreate
+            {
+                ProductId = a.ProductId,
+                Quantity = a.Quantity,
+                SpecialInstructions = a.SpecialInstructions,
+                ModifierIds = a.SelectedModifiers.Select(sm => sm.Id).ToList()
+            });
+        }
+
+        return update;
+    }
+
+    private CartItem CloneCartItem(CartItem c) => new()
+    {
+        OrderItemId = c.OrderItemId,
+        ProductId = c.ProductId,
+        ProductName = c.ProductName,
+        UnitPrice = c.UnitPrice,
+        Quantity = c.Quantity,
+        SpecialInstructions = c.SpecialInstructions,
+        SelectedModifiers = new List<Modifier>(c.SelectedModifiers)
+    };
+
+    private IEnumerable<CartItem> GetAddedItems() =>
+        cart.Where(c => !c.OrderItemId.HasValue);
+
+    private IEnumerable<CartItem> GetRemovedItems() =>
+        originalCart.Where(o => o.OrderItemId.HasValue && !cart.Any(c => c.OrderItemId == o.OrderItemId));
+
+    private IEnumerable<(CartItem Old, CartItem New)> GetModifiedItems()
+    {
+        foreach (var oldItem in originalCart.Where(o => o.OrderItemId.HasValue))
+        {
+            var current = cart.FirstOrDefault(c => c.OrderItemId == oldItem.OrderItemId);
+            if (current != null)
+            {
+                bool modifiersChanged = string.Join(",", current.SelectedModifiers.Select(m => m.Id).OrderBy(id => id)) != 
+                                        string.Join(",", oldItem.SelectedModifiers.Select(m => m.Id).OrderBy(id => id));
+                if (current.Quantity != oldItem.Quantity || current.SpecialInstructions != oldItem.SpecialInstructions || modifiersChanged)
+                {
+                    yield return (oldItem, current);
+                }
+            }
+        }
     }
 
     private decimal CalculateTotal()
@@ -691,6 +962,60 @@
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "No se pudo abrir ventana de impresión");
+        }
+    }
+
+    private async Task PrintDiffTicket(string title, List<CartItem> added, List<CartItem> removed, List<(CartItem Old, CartItem New)> modified)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append("<html><head><style>");
+        sb.Append("body{font-family:monospace;padding:12px;} h3{margin:0 0 8px 0;} .sect{margin-bottom:10px;} .add{color:#1e8449;} .del{color:#c0392b;} .mod{color:#2980b9;} .item{margin-left:8px;} .note{color:#555;font-style:italic;}");
+        sb.Append("</style></head><body>");
+        sb.Append($"<h3>{title}</h3><hr/>");
+        if (added.Any())
+        {
+            sb.Append("<div class='sect add'><strong>Añadidos</strong><br/>");
+            foreach (var a in added)
+            {
+                sb.Append($"<div class='item'>+ {a.Quantity} x {a.ProductName}");
+                if (!string.IsNullOrEmpty(a.SpecialInstructions)) sb.Append($" <span class='note'>({a.SpecialInstructions})</span>");
+                sb.Append("</div>");
+            }
+            sb.Append("</div>");
+        }
+        if (modified.Any())
+        {
+            sb.Append("<div class='sect mod'><strong>Modificados</strong><br/>");
+            foreach (var m in modified)
+            {
+                sb.Append($"<div class='item'>~ {m.New.Quantity} x {m.New.ProductName}");
+                if (m.Old.Quantity != m.New.Quantity) sb.Append($" <span class='note'>(antes {m.Old.Quantity})</span>");
+                if (m.Old.SpecialInstructions != m.New.SpecialInstructions) sb.Append($" <span class='note'>nota: {m.New.SpecialInstructions}</span>");
+                sb.Append("</div>");
+            }
+            sb.Append("</div>");
+        }
+        if (removed.Any())
+        {
+            sb.Append("<div class='sect del'><strong>Eliminados</strong><br/>");
+            foreach (var r in removed)
+            {
+                sb.Append($"<div class='item'>- {r.Quantity} x {r.ProductName}");
+                if (!string.IsNullOrEmpty(r.SpecialInstructions)) sb.Append($" <span class='note'>({r.SpecialInstructions})</span>");
+                sb.Append("</div>");
+            }
+            sb.Append("</div>");
+        }
+        sb.Append("<hr/><div style='font-size:11px;color:#666;'>Generado automáticamente</div></body></html>");
+
+        var html = sb.ToString().Replace("`", "\\`");
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("eval", $"var w=window.open('','_blank','width=420,height=640'); w.document.write(`{html}`); w.document.close();");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "No se pudo abrir ticket de cambios");
         }
     }
 }

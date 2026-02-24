@@ -5,6 +5,11 @@
 .env.*.local
 .env.db
 
+# AI tools
+.claude/
+.gemini/
+.agents/
+
 # Python
 __pycache__/
 *.py[cod]

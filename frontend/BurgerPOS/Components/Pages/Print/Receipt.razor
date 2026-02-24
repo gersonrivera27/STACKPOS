@@ -140,8 +140,8 @@ else
         <!-- Footer -->
         <div class="footer text-center">
             
-            <div class="payment-status @(payment != null ? "paid" : "unpaid")">
-                @(payment != null ? "✅ PAID" : "❌ UNPAID")
+            <div class="payment-status @((payment != null || (order?.HasPayment ?? false)) ? "paid" : "unpaid")">
+                @((payment != null || (order?.HasPayment ?? false)) ? "✅ PAID" : "❌ UNPAID")
                 @if(payment != null)
                 {
                     <span style="font-size: 0.8em; display:block;">Via: @GetPaymentMethod(payment.PaymentType)</span>
@@ -195,12 +195,9 @@ else
         try
         {
             order = await ApiService.GetOrderAsync(OrderId);
-            // Intentar cargar info de pago
-            if (order != null && order.Status == "completed")
+            // Intentar cargar info de pago (si existe)
+            if (order != null)
             {
-                // TODO: Necesitamos endpoint para obtener pago por OrderId
-                // Por ahora simulamos o agregamos al servicio
-                // Asumiendo que agregamos ApiService.GetPaymentByOrderAsync
                 try {
                      payment = await ApiService.GetPaymentByOrderAsync(OrderId);
                 } catch {}

@@ -25,7 +25,7 @@ class ProductRepository:
             SELECT 
                 p.id, p.name, p.category_id, p.price, 
                 p.description, p.image_url, p.is_available, 
-                p.created_at, p.updated_at,
+                p.sort_order, p.stock_quantity, p.created_at, p.updated_at,
                 c.name as category_name
             FROM products p
             JOIN categories c ON p.category_id = c.id
@@ -53,7 +53,7 @@ class ProductRepository:
             SELECT 
                 p.id, p.name, p.category_id, p.price, 
                 p.description, p.image_url, p.is_available, 
-                p.created_at, p.updated_at,
+                p.sort_order, p.stock_quantity, p.created_at, p.updated_at,
                 c.name as category_name
             FROM products p
             JOIN categories c ON p.category_id = c.id
@@ -68,15 +68,15 @@ class ProductRepository:
         cursor.execute("""
             INSERT INTO products (
                 name, category_id, price, description, 
-                image_url, is_available
+                image_url, is_available, sort_order, stock_quantity
             )
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id, name, category_id, price, description, 
-                      image_url, is_available, created_at, updated_at
+                      image_url, is_available, sort_order, stock_quantity, created_at, updated_at
         """, (
             product.name, product.category_id, product.price,
             product.description, product.image_url, 
-            product.is_available
+            product.is_available, product.sort_order, product.stock_quantity
         ))
         return cursor.fetchone()
 
@@ -110,6 +110,14 @@ class ProductRepository:
         if product.is_available is not None:
             updates.append("is_available = %s")
             values.append(product.is_available)
+            
+        if product.sort_order is not None:
+            updates.append("sort_order = %s")
+            values.append(product.sort_order)
+            
+        if product.stock_quantity is not None:
+            updates.append("stock_quantity = %s")
+            values.append(product.stock_quantity)
         
         if not updates:
             return None
@@ -122,7 +130,7 @@ class ProductRepository:
             SET {', '.join(updates)}
             WHERE id = %s
             RETURNING id, name, category_id, price, description, 
-                      image_url, is_available, created_at, updated_at
+                      image_url, is_available, sort_order, stock_quantity, created_at, updated_at
         """
         
         cursor.execute(query, values)

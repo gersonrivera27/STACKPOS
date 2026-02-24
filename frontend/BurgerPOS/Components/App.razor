@@ -24,24 +24,73 @@
 <body>
     <Routes @rendermode="@(new InteractiveServerRenderMode(prerender: false))" />
     
-    <!-- Google Maps API -->
+    <!-- Google Maps API with Places Library -->
     <script>
-     (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.googleapis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
-        key: "AIzaSyAYTufC2O-VJT4Q1g0C-4q5yXyyEwiWyfA",
+     (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.googleapis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?void 0:d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+        key: "AIzaSyDuzUOywj6xIZat1o3yOEK6J4rH2u4S-FE",
         v: "weekly",
      });
 
     async function loadGoogleMaps() {
         await google.maps.importLibrary("core");
         await google.maps.importLibrary("geocoding");
-        console.log('🗺️ Google Maps Geocoding disponible');
+        await google.maps.importLibrary("places");
+        await google.maps.importLibrary("maps");
     }
 
     loadGoogleMaps();
     </script>
-    
-    <!-- Eircode Search Script (DESPUÉS de Google Maps) -->
-    <script src="js/maps.js"></script>
+
+    <!-- Google Maps Interop & Legacy Maps Script -->
+    <script src="js/google-maps.js"></script>
+    <script src="js/eircode-maps-v2.js"></script>
+    <script>
+        window.invokeSearchAddressByEircode = async function (eircode, dotnetReference) {
+            if (typeof window.searchAddressByEircode === "function") {
+                return window.searchAddressByEircode(eircode, dotnetReference);
+            }
+
+            const clean = (eircode || "").trim().toUpperCase().replace(/\s+/g, "");
+
+            if (!clean) {
+                await dotnetReference.invokeMethodAsync("OnAddressError", "Por favor ingresa un Eircode");
+                return;
+            }
+
+            try {
+                const nominatimUrl =
+                    "https://nominatim.openstreetmap.org/search?" +
+                    "postalcode=" + encodeURIComponent(clean) +
+                    "&country=ie&countrycodes=ie&format=json&addressdetails=1&limit=1";
+
+                const response = await fetch(nominatimUrl, {
+                    headers: { "User-Agent": "BurgerPOS/1.0" }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.length > 0 && data[0].address) {
+                        const a = data[0].address;
+                        const line = a.road || a.neighbourhood || a.suburb || a.village || "Address";
+                        const city = a.town || a.city || a.village || a.county || "Drogheda";
+                        const lat = parseFloat(data[0].lat);
+                        const lon = parseFloat(data[0].lon);
+
+                        await dotnetReference.invokeMethodAsync("OnAddressFound", line, city, lat, lon);
+                        return;
+                    }
+                }
+            } catch {}
+
+            if (clean.startsWith("A92")) {
+                await dotnetReference.invokeMethodAsync("OnAddressFound", "Drogheda Area", "Drogheda", 53.7134, -6.3488);
+                return;
+            }
+
+            await dotnetReference.invokeMethodAsync("OnAddressError",
+                "No se encontro la direccion para ese Eircode. Intenta ingresarla manualmente.");
+        };
+    </script>
     
     <script src="_framework/blazor.web.js"></script>
     <script>

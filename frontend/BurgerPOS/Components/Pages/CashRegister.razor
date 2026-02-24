@@ -6,36 +6,38 @@
 @inject NavigationManager Navigation
 @inject ILogger<CashRegister> Logger
 
-<div class="pos-layout">
+<div class="pos-layout cash-layout">
     <header class="pos-header">
-        <div class="brand">
-            <div class="brand-icon"></div>
-            <span class="brand-name"><strong>STACK</strong> CASH</span>
+        <div class="brand cash-brand">
+            <div class="cash-brand-mark">
+                <i class="bi bi-safe2-fill"></i>
+            </div>
+            <span class="brand-name">CASH DESK</span>
         </div>
         
         <div class="header-info">
              @if (activeSession != null)
              {
-                <div class="info-pill" style="background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9;">
+                <div class="info-pill cash-pill open">
                     <i class="bi bi-unlock-fill icon"></i>
                     <span class="text">SESIÓN ABIERTA</span>
                 </div>
              }
              else
              {
-                <div class="info-pill" style="background: #ffebee; color: #c62828; border: 1px solid #ffcdd2;">
+                <div class="info-pill cash-pill closed">
                     <i class="bi bi-lock-fill icon"></i>
                     <span class="text">SESIÓN CERRADA</span>
                 </div>
              }
         </div>
 
-        <button class="btn-logout" @onclick="GoHome" style="background-color: var(--secondary-color);">
+        <button class="btn-logout cash-home-btn" @onclick="GoHome">
             <i class="bi bi-house-door-fill"></i> HOME
         </button>
     </header>
 
-    <main class="pos-main" style="grid-template-columns: 1fr;">
+    <main class="pos-main cash-main">
         @if (isLoading)
         {
             <div class="loading-container">
@@ -47,9 +49,9 @@
         {
             <div class="open-session-container">
                 <div class="open-card">
-                    <div style="margin-bottom: 20px;">
-                        <i class="bi bi-cash-coin" style="font-size: 3rem; color: var(--success-color);"></i>
-                        <h2 style="margin: 10px 0;">APERTURA DE CAJA</h2>
+                    <div class="open-card-header">
+                        <i class="bi bi-cash-coin"></i>
+                        <h2>APERTURA DE CAJA</h2>
                         <p class="text-muted">Ingresa el fondo inicial para comenzar a operar.</p>
                     </div>
 
@@ -69,7 +71,7 @@
 
                     @if (!string.IsNullOrEmpty(errorMessage))
                     {
-                        <div class="alert alert-danger" style="color: #e74c3c; margin-bottom: 15px;">
+                        <div class="alert alert-danger cash-alert">
                             <i class="bi bi-exclamation-triangle-fill"></i> @errorMessage
                         </div>
                     }
@@ -140,7 +142,7 @@
                 <!-- Right Panel: Close & History -->
                 <div class="actions-panel">
                     <div class="action-card">
-                        <h3 class="section-title" style="color: var(--danger-color); border-color: #ffebee;">
+                        <h3 class="section-title section-title-danger">
                             <i class="bi bi-lock-fill"></i> CIERRE DE CAJA
                         </h3>
                         
@@ -176,7 +178,7 @@
 
                             @if (!string.IsNullOrEmpty(errorMessage))
                             {
-                                <div class="alert alert-danger" style="color: #e74c3c;">
+                                <div class="alert alert-danger cash-alert">
                                     @errorMessage
                                 </div>
                             }
@@ -205,8 +207,8 @@
                                         {
                                             <tr>
                                                 <td>
-                                                    <div style="font-weight:bold;">@session.OpenedAt.ToString("dd/MM")</div>
-                                                    <div style="font-size:0.8em; color:var(--gray);">@session.OpenedAt.ToString("HH:mm")</div>
+                                                    <div class="history-date">@session.OpenedAt.ToString("dd/MM")</div>
+                                                    <div class="history-time">@session.OpenedAt.ToString("HH:mm")</div>
                                                 </td>
                                                 <td>€@session.TotalSales.ToString("F2")</td>
                                                 <td>

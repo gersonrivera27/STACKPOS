@@ -2,6 +2,24 @@ using System.Text.Json.Serialization;
 
 namespace BurgerPOS.Models;
 
+public class Modifier
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("price")]
+    public decimal Price { get; set; }
+
+    [JsonPropertyName("modifier_type")]
+    public string? ModifierType { get; set; }
+
+    [JsonPropertyName("is_active")]
+    public bool IsActive { get; set; } = true;
+}
+
 // ==================== CATEGORY ====================
 public class Category
 {
@@ -250,6 +268,9 @@ public class Order
     
     [JsonPropertyName("payment_method")]
     public string? PaymentMethod { get; set; }
+
+    [JsonPropertyName("has_payment")]
+    public bool HasPayment { get; set; }
     
     [JsonPropertyName("created_at")]
     public DateTime CreatedAt { get; set; }
@@ -281,13 +302,16 @@ public class HealthResponse
 
 public class CartItem
 {
+    // When editing an existing order, keep reference to order_items.id
+    public int? OrderItemId { get; set; }
     public int ProductId { get; set; }
     public string ProductName { get; set; } = string.Empty;
     public decimal UnitPrice { get; set; }
     public int Quantity { get; set; }
     public string? SpecialInstructions { get; set; }
+    public List<Modifier> SelectedModifiers { get; set; } = new();
     
-    public decimal Subtotal => UnitPrice * Quantity;
+    public decimal Subtotal => (UnitPrice + SelectedModifiers.Sum(m => m.Price)) * Quantity;
 }
 
 public class OrderItemCreate
@@ -300,6 +324,9 @@ public class OrderItemCreate
     
     [JsonPropertyName("special_instructions")]
     public string? SpecialInstructions { get; set; }
+
+    [JsonPropertyName("modifier_ids")]
+    public List<int> ModifierIds { get; set; } = new();
 }
 
 public class OrderCreate
@@ -327,6 +354,15 @@ public class OrderCreate
 
     [JsonPropertyName("status")]
     public string? Status { get; set; }
+}
+
+public class OrderItemsUpdate
+{
+    [JsonPropertyName("add_items")]
+    public List<OrderItemCreate> AddItems { get; set; } = new();
+
+    [JsonPropertyName("remove_item_ids")]
+    public List<int> RemoveItemIds { get; set; } = new();
 }
 
 public class OrderItem
@@ -497,7 +533,48 @@ public class CashSession
     
     [JsonPropertyName("closed_at")]
     public DateTime? ClosedAt { get; set; }
-    
+
     [JsonPropertyName("notes")]
     public string? Notes { get; set; }
+}
+
+// ==================== CONFIGURATION ====================
+public class PublicConfigResponse
+{
+    [JsonPropertyName("google_maps_api_key")]
+    public string GoogleMapsApiKey { get; set; } = "";
+}
+
+// ==================== GEOCODING ====================
+public class GeocodeResponse
+{
+    [JsonPropertyName("found")]
+    public bool Found { get; set; }
+
+    [JsonPropertyName("address_line1")]
+    public string? AddressLine1 { get; set; }
+
+    [JsonPropertyName("address_line2")]
+    public string? AddressLine2 { get; set; }
+
+    [JsonPropertyName("city")]
+    public string? City { get; set; }
+
+    [JsonPropertyName("county")]
+    public string? County { get; set; }
+
+    [JsonPropertyName("eircode")]
+    public string? Eircode { get; set; }
+
+    [JsonPropertyName("latitude")]
+    public double? Latitude { get; set; }
+
+    [JsonPropertyName("longitude")]
+    public double? Longitude { get; set; }
+
+    [JsonPropertyName("formatted_address")]
+    public string? FormattedAddress { get; set; }
+
+    [JsonPropertyName("location_type")]
+    public string? LocationType { get; set; }
 }

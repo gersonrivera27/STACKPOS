@@ -2,7 +2,6 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components.Authorization;
 using Blazored.LocalStorage;
-using Microsoft.JSInterop;
 
 namespace BurgerPOS.Services;
 
@@ -13,26 +12,17 @@ namespace BurgerPOS.Services;
 public class AuthStateProvider : AuthenticationStateProvider
 {
     private readonly ILocalStorageService _localStorage;
-    private readonly Microsoft.JSInterop.IJSRuntime _jsRuntime;
     private const string TOKEN_KEY = "authToken";
 
-    public AuthStateProvider(ILocalStorageService localStorage, Microsoft.JSInterop.IJSRuntime jsRuntime)
+    public AuthStateProvider(ILocalStorageService localStorage)
     {
         _localStorage = localStorage;
-        _jsRuntime = jsRuntime;
     }
 
     private async Task LogToBrowser(string message)
     {
-        try
-        {
-            await _jsRuntime.InvokeVoidAsync("console.log", message);
-        }
-        catch
-        {
-            // Ignorar si no se puede loguear (ej. prerendering)
-            Console.WriteLine(message);
-        }
+        // Logging de depuración deshabilitado para evitar ruido en la consola del navegador.
+        await Task.CompletedTask;
     }
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()

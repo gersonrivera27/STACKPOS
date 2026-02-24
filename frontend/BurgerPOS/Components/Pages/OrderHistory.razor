@@ -27,7 +27,8 @@
                     <option value="">TODOS</option>
                     <option value="pending">PENDIENTE</option>
                     <option value="preparing">PREPARANDO</option>
-                    <option value="completed">COMPLETADO</option>
+                    <option value="ready">LISTO (COCINA)</option>
+                    <option value="completed">PAGADO</option>
                     <option value="cancelled">CANCELADO</option>
                 </select>
             </div>
@@ -63,6 +64,14 @@
                     <div class="selected-info">
                         <span class="selected-id">#@selectedOrder.OrderNumber</span>
                         <span class="selected-status @selectedOrder.Status.ToLower()">@selectedOrder.Status.ToUpper()</span>
+                        @if (!IsPaid(selectedOrder))
+                        {
+                            <span class="badge-payment unpaid">UNPAID</span>
+                        }
+                        else
+                        {
+                            <span class="badge-payment paid">PAID</span>
+                        }
                     </div>
                 </div>
                 
@@ -70,7 +79,7 @@
                     🖨️ IMPRIMIR
                 </button>
                 
-                @if (selectedOrder.Status != "completed" && selectedOrder.Status != "cancelled")
+                @if (!IsPaid(selectedOrder) && selectedOrder.Status != "cancelled")
                 {
                     <button class="btn-action btn-pay" @onclick="OpenPaymentModal">
                         💰 PAGAR
@@ -89,78 +98,94 @@
         <div class="receipt-panel" id="receipt-area">
             @if (selectedOrder != null)
             {
-                <div class="receipt-header">
-                    <h3>STACK POS</h3>
-                    <p>123 Burger Street, Dublin</p>
-                    <p>Tel: 01 234 5678</p>
-                    <div class="receipt-divider">================================</div>
-                    <p>ORDEN: #@selectedOrder.OrderNumber</p>
-                    <p>FECHA: @selectedOrder.CreatedAt.ToString("dd/MM/yyyy HH:mm")</p>
-                    <p>CLIENTE: @selectedOrder.CustomerName</p>
-                    <div class="receipt-divider">================================</div>
-                </div>
+                <article class="receipt-sheet">
+                    <div class="receipt-header">
+                        <div class="receipt-brand">
+                            <h3>STACK POS</h3>
+                            <p>123 Burger Street, Dublin</p>
+                            <p>Tel: 01 234 5678</p>
+                        </div>
+                        <span class="receipt-payment-pill @(IsPaid(selectedOrder) ? "paid" : "unpaid")">
+                            @(IsPaid(selectedOrder) ? "PAID" : "UNPAID")
+                        </span>
+                    </div>
 
-                <div class="receipt-items">
-                    <table class="receipt-table">
-                        <thead>
-                            <tr>
-                                <th class="col-qty">QTY</th>
-                                <th class="col-desc">DESC</th>
-                                <th class="col-price">AMT</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (selectedOrder is OrderWithDetails details)
-                            {
-                                @foreach (var item in details.Items)
+                    <div class="receipt-meta">
+                        <div class="meta-row">
+                            <span>ORDEN</span>
+                            <strong>#@selectedOrder.OrderNumber</strong>
+                        </div>
+                        <div class="meta-row">
+                            <span>FECHA</span>
+                            <strong>@selectedOrder.CreatedAt.ToString("dd/MM/yyyy HH:mm")</strong>
+                        </div>
+                        <div class="meta-row">
+                            <span>CLIENTE</span>
+                            <strong>@selectedOrder.CustomerName</strong>
+                        </div>
+                    </div>
+
+                    <div class="receipt-items">
+                        <table class="receipt-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-qty">QTY</th>
+                                    <th class="col-desc">DESCRIPCIÓN</th>
+                                    <th class="col-price">AMT</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (selectedOrder is OrderWithDetails details)
                                 {
-                                    <tr>
-                                        <td class="col-qty">@item.Quantity</td>
-                                        <td class="col-desc">@item.ProductName</td>
-                                        <td class="col-price">@item.Subtotal.ToString("F2")</td>
-                                    </tr>
-                                    @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+                                    @foreach (var item in details.Items)
                                     {
                                         <tr>
-                                            <td></td>
-                                            <td colspan="2" class="receipt-modifier">>> @item.SpecialInstructions</td>
+                                            <td class="col-qty">@item.Quantity</td>
+                                            <td class="col-desc">@item.ProductName</td>
+                                            <td class="col-price">@item.Subtotal.ToString("F2")</td>
                                         </tr>
+                                        @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+                                        {
+                                            <tr>
+                                                <td></td>
+                                                <td colspan="2" class="receipt-modifier">+ @item.SpecialInstructions</td>
+                                            </tr>
+                                        }
                                     }
                                 }
-                            }
-                            else
-                            {
-                                <tr>
-                                    <td colspan="3" style="text-align:center; padding: 20px;">
-                                        Cargando detalles...
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="3" class="receipt-loading">
+                                            Cargando detalles...
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
 
-                <div class="receipt-footer">
-                    <div class="receipt-divider">================================</div>
-                    <div class="receipt-line">
-                        <span>SUBTOTAL:</span>
-                        <span>@selectedOrder.Subtotal.ToString("F2")</span>
+                    <div class="receipt-footer">
+                        <div class="receipt-line">
+                            <span>SUBTOTAL</span>
+                            <span>@selectedOrder.Subtotal.ToString("F2")</span>
+                        </div>
+                        <div class="receipt-line">
+                            <span>TAX (13.5%)</span>
+                            <span>@selectedOrder.Tax.ToString("F2")</span>
+                        </div>
+                        <div class="receipt-line total-line">
+                            <span>TOTAL</span>
+                            <span>@selectedOrder.Total.ToString("F2")</span>
+                        </div>
+                        <p class="receipt-thankyou">Gracias por su compra</p>
                     </div>
-                    <div class="receipt-line">
-                        <span>TAX (13.5%):</span>
-                        <span>@selectedOrder.Tax.ToString("F2")</span>
-                    </div>
-                    <div class="receipt-line total-line">
-                        <span>TOTAL:</span>
-                        <span>@selectedOrder.Total.ToString("F2")</span>
-                    </div>
-                    <div class="receipt-divider">================================</div>
-                    <p class="receipt-thankyou">*** GRACIAS POR SU COMPRA ***</p>
-                </div>
+                </article>
             }
             else
             {
                 <div class="no-selection">
+                    <i class="bi bi-receipt-cutoff"></i>
                     <p>Seleccione una orden para ver el ticket</p>
                 </div>
             }
@@ -203,13 +228,13 @@
                             </tr>
                         }
                     }
-                    else
-                    {
-                        <tr><td colspan="6" class="text-center">No se encontraron órdenes.</td></tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+            else
+            {
+                <tr><td colspan="6" class="text-center">No se encontraron órdenes.</td></tr>
+            }
+        </tbody>
+    </table>
+</div>
     </div>
 </div>
 
@@ -256,10 +281,16 @@
         isLoading = true;
         try
         {
+            // Seguridad UI: usuarios no admin nunca pueden habilitar historial completo
+            if (!isAdmin)
+            {
+                showHistory = false;
+            }
+
             // If showHistory is TRUE (and user is admin), ONLY_ACTIVE_SESSION is FALSE.
             // If showHistory is FALSE, ONLY_ACTIVE_SESSION is TRUE.
             // For non-admins, showHistory is always false.
-            bool onlyActive = !showHistory;
+            bool onlyActive = !isAdmin || !showHistory;
             
             orders = await ApiService.GetOrdersAsync(
                 status: string.IsNullOrEmpty(filterStatus) ? null : filterStatus,
@@ -373,4 +404,6 @@
     {
         Navigation.NavigateTo("/");
     }
+
+    private bool IsPaid(Order order) => order.HasPayment || !string.IsNullOrEmpty(order.PaymentMethod);
 }

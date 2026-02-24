@@ -8,12 +8,14 @@
 @inject IJSRuntime JSRuntime
 @implements IDisposable
 
-<div class="pos-layout">
+<div class="pos-layout kitchen-layout">
     <!-- Header compartido pero adaptado -->
     <header class="pos-header">
-        <div class="brand">
-            <div class="brand-icon"></div>
-            <span class="brand-name"><strong>STACK</strong> KITCHEN</span>
+        <div class="brand kitchen-brand">
+            <div class="kitchen-brand-mark">
+                <i class="bi bi-grid-3x3-gap-fill"></i>
+            </div>
+            <span class="brand-name">KITCHEN BOARD</span>
         </div>
         
         <div class="header-info">
@@ -27,15 +29,15 @@
             </div>
         </div>
 
-        <div style="display:flex; gap: 10px;">
-             <span class="text-muted" style="align-self: center; font-size: 0.9em;">Actualizado: @lastUpdated.ToString("HH:mm:ss")</span>
-            <button class="btn-logout" @onclick="GoHome" style="background-color: var(--secondary-color);">
+        <div class="kitchen-header-actions">
+             <span class="kitchen-updated">Actualizado: @lastUpdated.ToString("HH:mm:ss")</span>
+            <button class="btn-logout kitchen-home-btn" @onclick="GoHome">
                 <i class="bi bi-house-door-fill"></i> HOME
             </button>
         </div>
     </header>
 
-    <main class="pos-main" style="grid-template-columns: 1fr;"> <!-- Override grid to full width -->
+    <main class="pos-main kitchen-main">
         
         @if (isLoading && !ordersPending.Any() && !ordersPreparing.Any())
         {
@@ -50,7 +52,7 @@
                 <!-- Columna Pendientes -->
                 <div class="kanban-column pending-col">
                     <div class="column-header">
-                        <h2>🔔 PENDIENTES</h2>
+                        <h2><i class="bi bi-hourglass-split"></i> PENDIENTES</h2>
                     </div>
                     <div class="column-content">
                         @if (ordersPending.Any())
@@ -69,7 +71,7 @@
                                         </span>
                                         <div class="card-meta">
                                             @if(!string.IsNullOrEmpty(order.WaiterName)) {
-                                                <span class="waiter">👤 @order.WaiterName</span>
+                                                <span class="waiter"><i class="bi bi-person-badge"></i> @order.WaiterName</span>
                                             }
                                             <span class="today-customer">@order.CustomerName</span>
                                         </div>
@@ -84,13 +86,13 @@
                                                     <span class="name">@item.ProductName</span>
                                                     @if (!string.IsNullOrEmpty(item.SpecialInstructions))
                                                     {
-                                                        <div class="modifiers">⚠️ @item.SpecialInstructions</div>
+                                                        <div class="modifiers"><i class="bi bi-exclamation-triangle-fill"></i> @item.SpecialInstructions</div>
                                                     }
                                                     @if(item.Modifiers != null && item.Modifiers.Any())
                                                     {
                                                         @foreach(var mod in item.Modifiers)
                                                         {
-                                                            <div class="modifiers" style="background: #e3f2fd; color: #1976d2;">+ @mod.ModifierName</div>
+                                                            <div class="modifiers modifier-option"><i class="bi bi-plus-circle"></i> @mod.ModifierName</div>
                                                         }
                                                     }
                                                 </div>
@@ -99,10 +101,10 @@
                                     </div>
                                     <div class="card-actions">
                                         <button class="btn-action start" @onclick="@(() => UpdateStatus(order.Id, "preparing"))">
-                                            🍳 EMPEZAR
+                                            <i class="bi bi-play-circle-fill"></i> EMPEZAR
                                         </button>
                                         <button class="btn-action print" title="Imprimir Comanda" @onclick="@(async () => await JSRuntime.InvokeVoidAsync("open", $"/print/receipt/{order.Id}", "_blank"))">
-                                            🖨️
+                                            <i class="bi bi-printer-fill"></i>
                                         </button>
                                     </div>
                                 </div>
@@ -121,7 +123,7 @@
                 <!-- Columna En Preparación -->
                 <div class="kanban-column preparing-col">
                     <div class="column-header">
-                        <h2>🔥 EN PREPARACIÓN</h2>
+                        <h2><i class="bi bi-fire"></i> EN PREPARACIÓN</h2>
                     </div>
                     <div class="column-content">
                         @if (ordersPreparing.Any())
@@ -149,13 +151,13 @@
                                                     <span class="name">@item.ProductName</span>
                                                     @if (!string.IsNullOrEmpty(item.SpecialInstructions))
                                                     {
-                                                        <div class="modifiers">⚠️ @item.SpecialInstructions</div>
+                                                        <div class="modifiers"><i class="bi bi-exclamation-triangle-fill"></i> @item.SpecialInstructions</div>
                                                     }
                                                     @if(item.Modifiers != null && item.Modifiers.Any())
                                                     {
                                                         @foreach(var mod in item.Modifiers)
                                                         {
-                                                             <div class="modifiers" style="background: #e3f2fd; color: #1976d2;">+ @mod.ModifierName</div>
+                                                             <div class="modifiers modifier-option"><i class="bi bi-plus-circle"></i> @mod.ModifierName</div>
                                                         }
                                                     }
                                                 </div>
@@ -163,11 +165,11 @@
                                         }
                                     </div>
                                     <div class="card-actions">
-                                        <button class="btn-action finish" @onclick="@(() => UpdateStatus(order.Id, "completed"))">
-                                            ✅ LISTO
+                                        <button class="btn-action finish" @onclick="@(() => UpdateStatus(order.Id, "ready"))">
+                                            <i class="bi bi-check2-circle"></i> LISTO
                                         </button>
                                         <button class="btn-action print" title="Imprimir Comanda" @onclick="@(async () => await JSRuntime.InvokeVoidAsync("open", $"/print/receipt/{order.Id}", "_blank"))">
-                                            🖨️
+                                            <i class="bi bi-printer-fill"></i>
                                         </button>
                                     </div>
                                 </div>
@@ -183,10 +185,10 @@
                     </div>
                 </div>
                 
-                <!-- Columna Completados -->
+                <!-- Columna Listos (completados en cocina, pendientes de pago) -->
                 <div class="kanban-column completed-col">
                     <div class="column-header">
-                        <h2>✅ LISTOS (5)</h2>
+                        <h2><i class="bi bi-check2-square"></i> LISTOS (@ordersCompleted.Count)</h2>
                     </div>
                     <div class="column-content">
                         @if (ordersCompleted.Any())
@@ -196,7 +198,7 @@
                                 <div class="kitchen-card completed">
                                     <div class="card-header">
                                         <span class="order-id">#@order.OrderNumber</span>
-                                        <span class="order-time" style="background: #e8f5e9; color: #2e7d32;">
+                                        <span class="order-time ready-time">
                                             Listo: @(order.CompletedAt?.ToString("HH:mm") ?? "-")
                                         </span>
                                     </div>
@@ -205,8 +207,12 @@
                                     </div>
                                     <div class="card-actions">
                                         <button class="btn-action undo" @onclick="@(() => UpdateStatus(order.Id, "preparing"))">
-                                            ↩️ DESHACER
+                                            <i class="bi bi-arrow-counterclockwise"></i> DESHACER
                                         </button>
+                                        @if (!IsPaid(order))
+                                        {
+                                            <span class="badge-payment unpaid">UNPAID</span>
+                                        }
                                     </div>
                                 </div>
                             }
@@ -224,20 +230,75 @@
     private List<Order> ordersCompleted = new();
     private bool isLoading = true;
     private DateTime lastUpdated = DateTime.Now;
-    private System.Threading.Timer? timer;
+    
+    private System.Net.WebSockets.ClientWebSocket _webSocket = new();
+    private System.Threading.CancellationTokenSource _cts = new();
 
     protected override async Task OnInitializedAsync()
     {
         await LoadOrders();
-        // Refresh every 10s
-        timer = new System.Threading.Timer(async _ => 
+        _ = ConnectWebSocket();
+    }
+
+    private async Task ConnectWebSocket()
+    {
+        try
         {
-            await InvokeAsync(async () => 
+            var apiUrl = Environment.GetEnvironmentVariable("API_URL") ?? "http://localhost:8000";
+            var wsUrl = apiUrl.Replace("http://", "ws://").Replace("https://", "wss://") + "/api/ws";
+            
+            Logger.LogInformation($"Conectando WebSocket KDS a: {wsUrl}");
+            await _webSocket.ConnectAsync(new Uri(wsUrl), _cts.Token);
+            
+            var buffer = new byte[1024 * 4];
+            while (_webSocket.State == System.Net.WebSockets.WebSocketState.Open && !_cts.Token.IsCancellationRequested)
             {
-                await LoadOrders(false);
-                StateHasChanged();
-            });
-        }, null, 10000, 10000);
+                var result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), _cts.Token);
+                if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Text)
+                {
+                    var message = System.Text.Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    try 
+                    {
+                        var doc = System.Text.Json.JsonDocument.Parse(message);
+                        if (doc.RootElement.TryGetProperty("type", out var typeElement))
+                        {
+                            var eventType = typeElement.GetString();
+                            if (eventType == "order_updated" || eventType == "kitchen_update" || 
+                                eventType == "order_created" || eventType == "order_status_changed")
+                            {
+                                await InvokeAsync(async () => 
+                                {
+                                    await LoadOrders(false);
+                                    StateHasChanged();
+                                });
+                            }
+                        }
+                    } 
+                    catch (Exception ex) 
+                    {
+                        Logger.LogWarning(ex, "Error parseando mensaje WS");
+                    }
+                }
+                else if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
+                {
+                    await _webSocket.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, string.Empty, System.Threading.CancellationToken.None);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error en WebSocket de KDS");
+            // Reconnect after 5 seconds
+            if (!_cts.Token.IsCancellationRequested) 
+            {
+                await Task.Delay(5000);
+                if (_webSocket.State != System.Net.WebSockets.WebSocketState.Open) {
+                    _webSocket.Dispose();
+                    _webSocket = new System.Net.WebSockets.ClientWebSocket();
+                    _ = ConnectWebSocket();
+                }
+            }
+        }
     }
 
     private async Task LoadOrders(bool showLoading = true)
@@ -247,7 +308,7 @@
         {
             var p_orders = await ApiService.GetOrdersAsync("pending");
             var prep_orders = await ApiService.GetOrdersAsync("preparing");
-            var comp_orders = await ApiService.GetOrdersAsync("completed"); 
+            var comp_orders = await ApiService.GetOrdersAsync("ready"); 
 
             ordersPending = await EnrichOrders(p_orders);
             ordersPreparing = await EnrichOrders(prep_orders);
@@ -282,6 +343,8 @@
         try
         {
             await ApiService.UpdateOrderStatusAsync(orderId, newStatus);
+            // We no longer manually reload here because the websocket will broadcast back to us!
+            // But we can eagerly load to make UI feel snappier.
             await LoadOrders(false);
         }
         catch (Exception ex)
@@ -323,11 +386,14 @@
 
     public void Dispose()
     {
-        timer?.Dispose();
+        _cts.Cancel();
+        _webSocket?.Dispose();
     }
 
     private void GoHome()
     {
         Navigation.NavigateTo("/");
     }
+
+    private bool IsPaid(Order order) => order.HasPayment || !string.IsNullOrEmpty(order.PaymentMethod);
 }

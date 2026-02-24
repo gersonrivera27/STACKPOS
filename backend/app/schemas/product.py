@@ -12,6 +12,7 @@ class ProductBase(BaseModel):
     image_url: Optional[str] = None
     is_available: bool = True
     sort_order: int = 0
+    stock_quantity: int = 0
 
 class ProductCreate(ProductBase):
     pass
@@ -24,6 +25,7 @@ class ProductUpdate(BaseModel):
     image_url: Optional[str] = None
     is_available: Optional[bool] = None
     sort_order: Optional[int] = None
+    stock_quantity: Optional[int] = None
 
 class Product(ProductBase):
     id: int

@@ -280,12 +280,11 @@ def create_payment(payment_data: PaymentCreate, conn = Depends(get_db)):
         
         new_payment = cursor.fetchone()
         
-        # Actualizar estado de la orden a completada
+        # Marcar método de pago pero NO cambiar el estado de preparación/cocina.
+        # Esto mantiene la orden visible en cocina aunque ya esté pagada.
         cursor.execute("""
             UPDATE orders 
-            SET status = 'completed', 
-                payment_method = %s,
-                completed_at = CURRENT_TIMESTAMP
+            SET payment_method = %s
             WHERE id = %s
         """, (payment_data.payment_type.value, payment_data.order_id))
         

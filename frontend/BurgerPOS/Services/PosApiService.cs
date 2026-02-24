@@ -36,6 +36,51 @@ public class PosApiService
         }
     }
 
+    // ==================== CONFIGURATION ====================
+
+    public async Task<string?> GetGoogleMapsApiKeyAsync()
+    {
+        try
+        {
+            var response = await _httpClient.GetFromJsonAsync<PublicConfigResponse>("/api/config/public");
+            return response?.GoogleMapsApiKey;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo Google Maps API key");
+            return null;
+        }
+    }
+
+    // ==================== GEOCODING ====================
+
+    public async Task<GeocodeResponse?> GeocodeEircodeAsync(string eircode)
+    {
+        try
+        {
+            _logger.LogInformation("Geocoding Eircode: {Eircode}", eircode);
+
+            var response = await _httpClient.GetFromJsonAsync<GeocodeResponse>(
+                $"/api/geocoding/eircode?code={Uri.EscapeDataString(eircode)}");
+
+            if (response?.Found == true)
+            {
+                _logger.LogInformation("✅ Eircode geocoded: {Address}", response.FormattedAddress);
+            }
+            else
+            {
+                _logger.LogWarning("❌ Eircode not found: {Eircode}", eircode);
+            }
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error geocoding Eircode");
+            return null;
+        }
+    }
+
     // ==================== CUSTOMERS ====================
 
     public async Task<List<Customer>> GetCustomersAsync(string? search = null, int limit = 100)
@@ -104,6 +149,21 @@ public class PosApiService
         {
             _logger.LogError(ex, "Excepción buscando clientes");
             return new List<Customer>();
+        }
+    }
+
+    // ==================== MODIFIERS ====================
+    public async Task<List<Modifier>> GetModifiersAsync()
+    {
+        try
+        {
+            var modifiers = await _httpClient.GetFromJsonAsync<List<Modifier>>("/api/modifiers");
+            return modifiers ?? new List<Modifier>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error obteniendo modificadores");
+            return new List<Modifier>();
         }
     }
 
@@ -648,6 +708,39 @@ public class PosApiService
         {
             _logger.LogError(ex, "Error actualizando posición de mesa");
             return false;
+        }
+    }
+
+    public async Task<bool> UpdateTableStatusAsync(int tableId, bool isOccupied)
+    {
+        try
+        {
+            var response = await _httpClient.PatchAsync($"/api/tables/{tableId}/status?is_occupied={isOccupied.ToString().ToLower()}", null);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error actualizando estado de mesa");
+            return false;
+        }
+    }
+
+    public async Task<OrderWithDetails?> UpdateOrderItemsAsync(int orderId, OrderItemsUpdate update)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync($"/api/orders/{orderId}/items", update);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<OrderWithDetails>();
+            }
+            _logger.LogWarning("Fallo al actualizar items de orden {OrderId}: {Status}", orderId, response.StatusCode);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error actualizando items de orden {OrderId}", orderId);
+            return null;
         }
     }
 }

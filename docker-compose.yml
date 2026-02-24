@@ -15,21 +15,24 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5000
       - API_URL=http://burger-backend:8000
+    command: dotnet run --urls http://0.0.0.0:5000
     volumes:
-      - ./frontend:/app
       - data-protection-keys:/root/.aspnet/DataProtection-Keys
 
   backend:
-    image: python:3.11-slim
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
     container_name: burger-backend
     working_dir: /app
     volumes:
       - ./backend:/app
-    command: sh -c "pip install -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
     depends_on:
       - db
+      - rabbitmq
     restart: unless-stopped
     networks:
       - burger-net
@@ -37,6 +40,7 @@ services:
       - ./backend/.env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-burger_pos}
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
 
   db:
     image: postgres:15
@@ -48,9 +52,52 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backend/audit_logs.sql:/docker-entrypoint-initdb.d/02_audit_logs.sql
     restart: unless-stopped
     networks:
       - burger-net
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: burger-rabbitmq
+    ports:
+      - "5672:5672"      # AMQP port
+      - "15672:15672"    # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
+    networks:
+      - burger-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  audit-consumer:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: burger-audit-consumer
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    command: python -m app.consumers.audit_consumer
+    depends_on:
+      - db
+      - rabbitmq
+      - backend
+    restart: unless-stopped
+    networks:
+      - burger-net
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-burger_pos}
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
 
 networks:
   burger-net:
@@ -59,5 +106,6 @@ networks:
 volumes:
   postgres_data:
   data-protection-keys:
+  rabbitmq_data:
 
 

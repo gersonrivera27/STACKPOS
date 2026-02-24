@@ -450,12 +450,40 @@
 
         try
         {
-            await JS.InvokeVoidAsync("searchAddressByEircode", newEircode, 
+            // Try backend API first (uses Google Geocoding)
+            var result = await ApiService.GeocodeEircodeAsync(newEircode);
+
+            if (result?.Found == true && !string.IsNullOrWhiteSpace(result.AddressLine1)
+                && !result.AddressLine1.Contains("Area"))
+            {
+                // Backend returned a good street-level address
+                newAddress = result.AddressLine1;
+
+                if (!string.IsNullOrWhiteSpace(result.City))
+                    newCity = result.City;
+
+                if (!string.IsNullOrWhiteSpace(result.County))
+                    newCounty = result.County;
+
+                if (!string.IsNullOrWhiteSpace(result.Eircode))
+                    newEircode = result.Eircode;
+
+                newLatitude = result.Latitude;
+                newLongitude = result.Longitude;
+                createErrorMessage = "";
+                isSearchingNewAddress = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Backend didn't return street-level address, use JS interop
+            // (Google Places Text Search - much better for Eircodes)
+            await JS.InvokeVoidAsync("invokeSearchAddressByEircode", newEircode,
                 DotNetObjectReference.Create(this));
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            createErrorMessage = "Error al buscar la dirección: " + ex.Message;
+            createErrorMessage = "Error al buscar la dirección. Por favor intenta de nuevo.";
             isSearchingNewAddress = false;
             StateHasChanged();
         }

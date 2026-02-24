@@ -1,17 +1,18 @@
-// frontend/BurgerPOS/wwwroot/js/eircode-search.js
+// frontend/BurgerPOS/wwwroot/js/eircode-maps-v2.js
+// NOTE: debugLog, debugWarn, debugError are declared as global functions in google-maps.js
 
 /**
  * Busca una dirección usando el Eircode irlandés
  * Prioriza Google Maps Geocoding API
  */
 window.searchAddressByEircode = async function (eircode, dotnetReference) {
-    console.log('🔍 Buscando dirección para Eircode:', eircode);
+    window.debugLog('🔍 Buscando dirección para Eircode:', eircode);
 
     const cleanEircode = eircode.trim().toUpperCase().replace(/\s+/g, '');
 
     // Validar que sea un Eircode irlandés válido
     if (!isValidIrishEircode(cleanEircode)) {
-        console.error('❌ Formato de Eircode inválido:', cleanEircode);
+        window.debugError('❌ Formato de Eircode inválido:', cleanEircode);
         await dotnetReference.invokeMethodAsync('OnAddressError',
             'Formato de Eircode inválido. Debe ser como: A92 D65P'
         );
@@ -19,10 +20,19 @@ window.searchAddressByEircode = async function (eircode, dotnetReference) {
     }
 
     try {
-        // Método 1: Google Maps (PRINCIPAL - requiere API key)
+        // Método 1: Google Places Text Search (MEJOR para Eircodes → direcciones exactas)
+        if (typeof google !== 'undefined' && google.maps && google.maps.places) {
+            window.debugLog('🏠 Método 1: Usando Google Places Text Search...');
+            let placesSuccess = await searchWithPlacesTextSearch(cleanEircode, dotnetReference);
+            if (placesSuccess) {
+                return;
+            }
+        }
+
+        // Método 2: Google Maps Geocoding (fallback)
         let googleSuccess = false;
         if (typeof google !== 'undefined' && google.maps && google.maps.Geocoder) {
-            console.log('🗺️ Método 1: Usando Google Maps Geocoding API...');
+            window.debugLog('🗺️ Método 2: Usando Google Maps Geocoding API...');
             googleSuccess = await searchWithGoogleMaps(cleanEircode, dotnetReference);
         }
 
@@ -30,38 +40,15 @@ window.searchAddressByEircode = async function (eircode, dotnetReference) {
             return;
         }
 
-        console.log('⚠️ Google Maps no disponible o falló. Intentando métodos alternativos...');
-
-        // Método 2: Nominatim (Fallback - gratis pero menos preciso)
-        console.log('📡 Método 2 (Fallback): Consultando Nominatim...');
-
-        let nominatimResult = await searchNominatim(cleanEircode);
-
-        // Si falló, intentar con formato estándar (A92 F4E2 -> A92 F4E2 con espacio si es posible o como está)
-        if (!nominatimResult && cleanEircode.length > 3) {
-            // Intentar insertar espacio después de los primeros 3 caracteres si no lo tiene
-            const formattedEircode = cleanEircode.substring(0, 3) + ' ' + cleanEircode.substring(3);
-            console.log('📡 Reintentando Nominatim con formato:', formattedEircode);
-            nominatimResult = await searchNominatim(formattedEircode);
-        }
-
-        if (nominatimResult) {
-            console.log('✅ Nominatim - Dirección encontrada:', nominatimResult);
-            await dotnetReference.invokeMethodAsync('OnAddressFound',
-                nominatimResult.address,
-                nominatimResult.city,
-                nominatimResult.lat,
-                nominatimResult.lon
-            );
-            return;
-        }
-
+        window.debugLog('⚠️ Google Maps no disponible o falló. Usando prefijo...');
 
         // Método 3: Detección por prefijo (último recurso)
-        console.log('📡 Método 3 (Último recurso): Usando mapa de prefijos...');
+        // NOTE: Nominatim free-text search removed - it doesn't support Irish Eircodes
+        // and returns completely wrong results (e.g. Dublin for Drogheda Eircodes)
+        window.debugLog('📡 Método 3: Usando mapa de prefijos...');
 
         if (cleanEircode.startsWith('A92')) {
-            console.log('✅ Detectado área de Drogheda');
+            window.debugLog('✅ Detectado área de Drogheda');
             await dotnetReference.invokeMethodAsync('OnAddressFound',
                 'Drogheda Area',
                 'Drogheda',
@@ -73,7 +60,7 @@ window.searchAddressByEircode = async function (eircode, dotnetReference) {
 
         const eircodeMap = getIrishEircodeCity(cleanEircode);
         if (eircodeMap) {
-            console.log('✅ Área detectada por prefijo:', eircodeMap);
+            window.debugLog('✅ Área detectada por prefijo:', eircodeMap);
             await dotnetReference.invokeMethodAsync('OnAddressFound',
                 eircodeMap.area,
                 eircodeMap.city,
@@ -84,18 +71,149 @@ window.searchAddressByEircode = async function (eircode, dotnetReference) {
         }
 
         // No se encontró
-        console.warn('❌ No se pudo encontrar dirección para este Eircode');
+        window.debugWarn('❌ No se pudo encontrar dirección para este Eircode');
         await dotnetReference.invokeMethodAsync('OnAddressError',
             'No se encontró dirección. Por favor ingresa la dirección manualmente.'
         );
 
     } catch (error) {
-        console.error('❌ Error buscando dirección:', error);
+        window.debugError('❌ Error buscando dirección:', error);
         await dotnetReference.invokeMethodAsync('OnAddressError',
             'Error al buscar dirección: ' + error.message
         );
     }
 };
+
+/**
+ * Búsqueda con Google Places Text Search (MEJOR MÉTODO para Eircodes)
+ * Places Text Search resuelve Eircodes a direcciones exactas de calle
+ */
+async function searchWithPlacesTextSearch(eircode, dotnetReference) {
+    return new Promise((resolve) => {
+        try {
+            // PlacesService requires a DOM element (can be a hidden div)
+            let serviceDiv = document.getElementById('places-service-div');
+            if (!serviceDiv) {
+                serviceDiv = document.createElement('div');
+                serviceDiv.id = 'places-service-div';
+                serviceDiv.style.display = 'none';
+                document.body.appendChild(serviceDiv);
+            }
+
+            const service = new google.maps.places.PlacesService(serviceDiv);
+
+            // Format eircode with space for better matching: A92D65P -> A92 D65P
+            const formattedEircode = eircode.length === 7
+                ? eircode.substring(0, 3) + ' ' + eircode.substring(3)
+                : eircode;
+
+            window.debugLog('🔍 Places Text Search: Buscando', formattedEircode);
+
+            service.textSearch({
+                query: formattedEircode + ', Ireland',
+                region: 'ie'
+            }, async (results, status) => {
+                window.debugLog('📦 Places Text Search Status:', status, 'Results:', results?.length || 0);
+
+                if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+                    const result = results[0];
+                    const location = result.geometry.location;
+
+                    window.debugLog('📦 Places result:', {
+                        name: result.name,
+                        address: result.formatted_address,
+                        placeId: result.place_id
+                    });
+
+                    // Get detailed address components using Place Details
+                    service.getDetails({
+                        placeId: result.place_id,
+                        fields: ['address_components', 'formatted_address', 'geometry']
+                    }, async (place, detailStatus) => {
+                        if (detailStatus === google.maps.places.PlacesServiceStatus.OK && place) {
+                            let street = '';
+                            let streetNumber = '';
+                            let route = '';
+                            let city = 'Drogheda';
+                            let county = 'Louth';
+                            let foundEircode = '';
+
+                            for (const component of place.address_components) {
+                                const types = component.types;
+
+                                if (types.includes('street_number')) {
+                                    streetNumber = component.long_name;
+                                } else if (types.includes('route')) {
+                                    route = component.long_name;
+                                } else if (types.includes('sublocality') || types.includes('neighborhood')) {
+                                    if (!route) route = component.long_name;
+                                } else if (types.includes('locality')) {
+                                    city = component.long_name;
+                                } else if (types.includes('postal_town')) {
+                                    if (!city || city === 'Drogheda') city = component.long_name;
+                                } else if (types.includes('administrative_area_level_1')) {
+                                    county = component.long_name;
+                                    if (county.startsWith('County ')) county = county.substring(7);
+                                } else if (types.includes('postal_code')) {
+                                    foundEircode = component.long_name;
+                                }
+                            }
+
+                            // Build street address
+                            street = (streetNumber + ' ' + route).trim();
+
+                            // If no street from components, use result name or formatted_address
+                            if (!street || street === '') {
+                                // result.name often contains the specific address/place name
+                                if (result.name && result.name !== city && !result.name.includes(eircode)) {
+                                    street = result.name;
+                                } else {
+                                    const parts = place.formatted_address.split(',');
+                                    street = parts[0].trim();
+                                    if (street === city) {
+                                        street = parts.length > 1 ? parts[1].trim() : street;
+                                    }
+                                }
+                            }
+
+                            const lat = location.lat();
+                            const lon = location.lng();
+
+                            window.debugLog('✅ Places Text Search - Dirección exacta encontrada:', {
+                                street, city, county, lat, lon,
+                                formatted: place.formatted_address
+                            });
+
+                            await dotnetReference.invokeMethodAsync('OnAddressFound',
+                                street, city, lat, lon
+                            );
+                            resolve(true);
+                        } else {
+                            // Details failed, use basic info from text search
+                            window.debugLog('⚠️ Place details failed, using basic text search result');
+                            const parts = result.formatted_address.split(',');
+                            const street = parts[0].trim();
+                            const city = parts.length > 1 ? parts[1].trim() : 'Drogheda';
+                            const lat = location.lat();
+                            const lon = location.lng();
+
+                            await dotnetReference.invokeMethodAsync('OnAddressFound',
+                                street, city, lat, lon
+                            );
+                            resolve(true);
+                        }
+                    });
+                } else {
+                    window.debugWarn('❌ Places Text Search no encontró resultados para:', formattedEircode);
+                    resolve(false);
+                }
+            });
+        } catch (error) {
+            window.debugError('❌ Error en Places Text Search:', error);
+            resolve(false);
+        }
+    });
+}
 
 /**
  * Búsqueda con Google Maps Geocoding API (MÉTODO PRINCIPAL)
@@ -105,7 +223,7 @@ async function searchWithGoogleMaps(eircode, dotnetReference) {
         try {
             const geocoder = new google.maps.Geocoder();
 
-            console.log('🔍 Google Maps: Geocodificando Eircode:', eircode);
+            window.debugLog('🔍 Google Maps: Geocodificando Eircode:', eircode);
 
             geocoder.geocode({
                 address: eircode,
@@ -113,7 +231,7 @@ async function searchWithGoogleMaps(eircode, dotnetReference) {
                     country: 'IE'  // Forzar Irlanda
                 }
             }, async (results, status) => {
-                console.log('📦 Google Maps Status:', status);
+                window.debugLog('📦 Google Maps Status:', status);
 
                 if (status === 'OK' && results && results.length > 0) {
                     const result = results[0];
@@ -159,7 +277,7 @@ async function searchWithGoogleMaps(eircode, dotnetReference) {
                     const lat = location.lat();
                     const lon = location.lng();
 
-                    console.log('✅ Google Maps - Dirección encontrada:', {
+                    window.debugLog('✅ Google Maps - Dirección encontrada:', {
                         address: street,
                         city: city,
                         county: county,
@@ -178,13 +296,13 @@ async function searchWithGoogleMaps(eircode, dotnetReference) {
 
                     resolve(true); // Success
                 } else {
-                    console.warn('❌ Google Maps Geocoding falló o fue denegado:', status);
+                    window.debugWarn('❌ Google Maps Geocoding falló o fue denegado:', status);
                     // No llamamos a OnAddressError aquí para permitir el fallback
                     resolve(false); // Failed
                 }
             });
         } catch (error) {
-            console.error('❌ Error en Google Maps:', error);
+            window.debugError('❌ Error en Google Maps:', error);
             resolve(false); // Failed
         }
     });
@@ -234,8 +352,8 @@ function getIrishEircodeCity(eircode) {
     return eircodeMap[prefix] || null;
 }
 
-console.log('✅ Eircode Search API cargada');
-console.log('🗺️ Google Maps API: ' + (typeof google !== 'undefined' ? 'Disponible ✅' : 'No disponible ❌'));
+window.debugLog('✅ Eircode Search API cargada');
+window.debugLog('🗺️ Google Maps API: ' + (typeof google !== 'undefined' ? 'Disponible ✅' : 'No disponible ❌'));
 
 /**
  * Abre Google Maps en una nueva pestaña con el Eircode
@@ -297,7 +415,7 @@ async function searchNominatim(query) {
             lon: parseFloat(result.lon)
         };
     } catch (e) {
-        console.warn('Error en Nominatim search:', e);
+        window.debugWarn('Error en Nominatim search:', e);
         return null;
     }
 }

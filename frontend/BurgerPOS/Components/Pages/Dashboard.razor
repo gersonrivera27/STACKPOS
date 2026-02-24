@@ -2,11 +2,13 @@
 @rendermode InteractiveServer
 @using BurgerPOS.Models
 @using BurgerPOS.Services
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "admin")]
 @inject PosApiService ApiService
 @inject NavigationManager Navigation
 @inject ILogger<Dashboard> Logger
 
-<div class="dashboard-container">
+<div class="dashboard-container modern-dashboard">
     <!-- Header -->
     <div class="dashboard-header">
         <div class="dashboard-title">
@@ -22,7 +24,7 @@
 
     @if (isLoading)
     {
-        <div class="loading-container" style="display: flex; justify-content: center; align-items: center; height: 300px;">
+        <div class="loading-container dashboard-loading">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Cargando...</span>
             </div>
@@ -60,7 +62,7 @@
                  <div class="stat-icon cancel"><i class="bi bi-x-circle"></i></div>
                  <div class="stat-info">
                     <h3>Canceladas</h3>
-                    <div class="stat-value" style="color: var(--danger-color);">@dailySales.Summary.CancelledOrders</div>
+                    <div class="stat-value stat-value-cancel">@dailySales.Summary.CancelledOrders</div>
                  </div>
             </div>
         </div>
@@ -70,7 +72,7 @@
             <!-- Top Products -->
             <div class="chart-card">
                 <div class="chart-header">
-                    <h2>🔥 Productos Más Vendidos</h2>
+                    <h2><i class="bi bi-stars"></i> Productos Más Vendidos</h2>
                 </div>
                 
                 @if (topProducts != null && topProducts.TopProducts.Any())
@@ -113,7 +115,7 @@
             <!-- Sales By Type -->
             <div class="chart-card">
                 <div class="chart-header">
-                    <h2>📊 Por Tipo de Orden</h2>
+                    <h2><i class="bi bi-bar-chart-fill"></i> Por Tipo de Orden</h2>
                 </div>
                 
                 @if (dailySales.ByOrderType.Any())
@@ -142,15 +144,15 @@
 
                             var percentage = (double)type.Total / (double)maxTotal * 100;
                             
-                             <div class="progress-item" style="padding: 10px; border: 1px solid #f0f0f0; border-radius: 8px;">
-                                <div class="progress-info" style="align-items: center;">
-                                    <span style="display: flex; align-items: center; gap: 8px;">
-                                        <i class="bi @icon" style="font-size: 1.2rem; color: var(--primary-accent);"></i> 
+                             <div class="progress-item progress-item-type">
+                                <div class="progress-info progress-info-type">
+                                    <span class="type-name">
+                                        <i class="bi @icon type-icon"></i> 
                                         @typeName
                                     </span>
-                                    <span style="font-size: 1.1rem;">€@type.Total.ToString("F2")</span>
+                                    <span class="type-total">€@type.Total.ToString("F2")</span>
                                 </div>
-                                <div class="progress-meta" style="margin-left: 32px;">
+                                <div class="progress-meta progress-meta-type">
                                     @type.Count órdenes
                                 </div>
                              </div>

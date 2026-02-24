@@ -14,7 +14,7 @@ router = APIRouter()
 def get_modifiers(conn = Depends(get_db)):
     """Obtener todos los modificadores"""
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM modifiers ORDER BY modifier_type, name")
+    cursor.execute("SELECT id, name, price, is_active FROM modifiers ORDER BY name")
     modifiers = cursor.fetchall()
     return modifiers
 
@@ -23,8 +23,8 @@ def create_modifier(modifier: ModifierCreate, conn = Depends(get_db)):
     """Crear un nuevo modificador"""
     cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO modifiers (name, price, modifier_type) VALUES (%s, %s, %s) RETURNING *",
-        (modifier.name, modifier.price, modifier.modifier_type)
+        "INSERT INTO modifiers (name, price) VALUES (%s, %s) RETURNING id, name, price, is_active",
+        (modifier.name, modifier.price)
     )
     new_modifier = cursor.fetchone()
     conn.commit()

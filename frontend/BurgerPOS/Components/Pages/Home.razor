@@ -14,31 +14,7 @@
 
 
 <div class="pos-layout">
-    <!-- 1. Header -->
-    <header class="pos-header">
-        <div class="brand">
-            <div class="brand-icon"></div>
-            <span class="brand-name"><strong>STACK</strong> POS</span>
-        </div>
-        
-        <div class="header-info">
-            <div class="info-pill">
-                <i class="bi bi-person-circle icon"></i>
-                <span class="text">Admin</span>
-            </div>
-            <div class="info-pill">
-                <i class="bi bi-shop icon"></i>
-                <span class="text">Principal</span>
-            </div>
-            <div class="info-pill time-pill">
-                @currentTime
-            </div>
-        </div>
-
-            
-    </header>
-
-    <!-- 2. Main Content -->
+    <!-- Main Content -->
     <main class="pos-main">
         <!-- Lines Grid -->
         <div class="lines-grid">
@@ -52,6 +28,7 @@
                     
                     <div class="line-icon-wrapper">
                         <i class="bi bi-telephone-fill line-icon"></i>
+                        <span class="line-meta">Esperando llamada</span>
                     </div>
 
                     <div class="line-controls">
@@ -80,15 +57,24 @@
 
             <div class="system-status">
                 <div class="status-row">
-                    <span class="status-label">SERVER</span>
+                    <div class="status-copy">
+                        <span class="status-label">SERVER</span>
+                        <span class="status-text">@(backendConnected ? "Online" : "Sin conexión")</span>
+                    </div>
                     <span class="status-led @(backendConnected ? "led-green" : "led-red")"></span>
                 </div>
                 <div class="status-row">
-                    <span class="status-label">PRINTER</span>
+                    <div class="status-copy">
+                        <span class="status-label">PRINTER</span>
+                        <span class="status-text">Lista</span>
+                    </div>
                     <span class="status-led led-green"></span>
                 </div>
                 <div class="status-row">
-                    <span class="status-label">DB SYNC</span>
+                    <div class="status-copy">
+                        <span class="status-label">DB SYNC</span>
+                        <span class="status-text">Actualizada</span>
+                    </div>
                     <span class="status-led led-green"></span>
                 </div>
             </div>
@@ -149,8 +135,6 @@
 
 @code {
     private bool backendConnected = false;
-    private string currentTime = DateTime.Now.ToString("HH:mm:ss");
-    private System.Timers.Timer? timer;
     
     private bool showCustomerModal = false;
     private int selectedLineId = 0;
@@ -178,19 +162,6 @@
         {
             Logger.LogError(ex, "Error conectando al backend");
         }
-
-        // Iniciar reloj
-        timer = new System.Timers.Timer(1000);
-        timer.Elapsed += async (sender, e) => 
-        {
-            var newTime = DateTime.Now.ToString("HH:mm:ss");
-            if (newTime != currentTime)
-            {
-                currentTime = newTime;
-                await InvokeAsync(StateHasChanged);
-            }
-        };
-        timer.Start();
     }
 
     private void OpenCustomerModal(int lineId, string orderType)
@@ -280,13 +251,6 @@
         
         Logger.LogInformation("🚀 Navegando a: /nueva-orden?{Query}", query);
         Navigation.NavigateTo($"/nueva-orden?{query}");
-    }
-
-    public void Dispose()
-    {
-        Logger.LogInformation("🧹 Limpiando Home - Deteniendo timer");
-        timer?.Stop();
-        timer?.Dispose();
     }
 
     private class OrderLine

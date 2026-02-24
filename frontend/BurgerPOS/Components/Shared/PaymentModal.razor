@@ -152,7 +152,8 @@
 
     private void SetQuickAmount(decimal amount)
     {
-        cashAmount = amount;
+        // Sumar al efectivo recibido para permitir taps acumulativos (ej. 50 + 50 = 100)
+        cashAmount += amount;
     }
 
     private void SetExactAmount()

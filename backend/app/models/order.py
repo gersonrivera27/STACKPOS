@@ -33,6 +33,7 @@ class OrderItemCreate(BaseModel):
     product_id: int
     quantity: int = Field(gt=0, description="Cantidad debe ser mayor a 0")
     special_instructions: Optional[str] = None
+    modifier_ids: Optional[List[int]] = []
 
 class OrderItemBase(BaseModel):
     """Base para item de orden"""
@@ -42,12 +43,19 @@ class OrderItemBase(BaseModel):
     subtotal: Decimal
     special_instructions: Optional[str] = None
 
+class OrderItemModifier(BaseModel):
+    id: int
+    modifier_id: int
+    modifier_name: str
+    additional_price: Decimal
+
 class OrderItem(OrderItemBase):
     """Modelo completo de item de orden"""
     id: int
     order_id: int
     created_at: datetime
     product_name: Optional[str] = None
+    modifiers: List[OrderItemModifier] = []
     
     class Config:
         from_attributes = True
@@ -55,10 +63,12 @@ class OrderItem(OrderItemBase):
 class OrderCreate(BaseModel):
     """Modelo para crear orden"""
     customer_name: Optional[str] = None
+    customer_id: Optional[int] = None
     order_type: OrderType
     items: List[OrderItemCreate] = Field(min_length=1, description="Debe tener al menos 1 item")
     notes: Optional[str] = None
     table_id: Optional[int] = None
+    phone_line: Optional[int] = Field(None, ge=1, le=4, description="Línea telefónica (1-4)")
     payment_method: Optional[PaymentMethod] = None
     status: Optional[OrderStatus] = None
     user_id: Optional[int] = None
@@ -78,12 +88,15 @@ class OrderBase(BaseModel):
     status: str
     subtotal: Decimal
     tax: Decimal
+    delivery_fee: Decimal = Decimal("0.00")
     discount: Decimal
     total: Decimal
     payment_method: Optional[str] = None
     notes: Optional[str] = None
     table_id: Optional[int] = None
+    phone_line: Optional[int] = None
     user_id: Optional[int] = None
+    has_payment: bool = False
 
 class Order(OrderBase):
     """Modelo completo de orden"""

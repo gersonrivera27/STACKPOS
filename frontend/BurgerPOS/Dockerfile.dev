@@ -18,8 +18,11 @@ COPY . .
 
 WORKDIR /app/BurgerPOS
 
+# Force clean build to avoid stale staticwebassets cache
+RUN dotnet build -c Debug
+
 # Exponer puerto
 EXPOSE 5000
 
-# Ejecutar la aplicación
-CMD ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:5000"]
+# Ejecutar la aplicación (--no-build since we already built)
+CMD ["dotnet", "run", "--no-build", "--urls", "http://0.0.0.0:5000"]

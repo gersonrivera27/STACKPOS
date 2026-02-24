@@ -27,6 +27,21 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        position: relative; /* Ensure absolute positioning works inside if needed */
+        position: relative;
+    }
+
+    /* Critical overrides - inline to bypass static asset cache */
+    li.mobile-user-section {
+        display: none !important;
+    }
+
+    .user-dropdown-menu {
+        z-index: 9999 !important;
+    }
+
+    @@media (max-width: 768px) {
+        li.mobile-user-section {
+            display: block !important;
+        }
     }
 </style>

@@ -1,8 +1,10 @@
 @using BurgerPOS.Services
 @using BurgerPOS.Models
+@using System.Text.Json
 @inject PosApiService ApiService
 @inject IJSRuntime JS
 @inject ILogger<CustomerModal> Logger
+@implements IDisposable
 @rendermode InteractiveServer
 
 <link rel="stylesheet" href="css/components/customer-modal.css" />
@@ -91,44 +93,60 @@
                                placeholder="cliente@ejemplo.com" />
                     </div>
 
-                    <!-- Eircode -->
+                    <!-- Eircode Lookup -->
                     <div class="form-group">
-                        <label class="form-label">Eircode</label>
+                        <label class="form-label">Eircode (Código Postal Irlandés)</label>
                         <div class="input-group">
-                            <input type="text" 
-                                   id="eircodeInput"
-                                   class="form-input" 
-                                   @bind="eircode" 
+                            <input type="text"
+                                   class="form-input"
+                                   @bind="eircode"
                                    @bind:event="oninput"
                                    placeholder="A92 X7Y8"
                                    maxlength="8"
                                    style="text-transform: uppercase;" />
-                            <button class="btn-search" 
-                                    @onclick="SearchAddress" 
+                            <button class="btn-search btn-geocode"
+                                    @onclick="GeocodeEircode"
                                     type="button"
-                                    disabled="@isSearchingAddress">
-                                @(isSearchingAddress ? "🔄" : "🔍") Buscar
+                                    disabled="@(string.IsNullOrWhiteSpace(eircode) || isGeocodingEircode)">
+                                @if (isGeocodingEircode)
+                                {
+                                    <span class="spinner-small"></span>
+                                    <span>Buscando...</span>
+                                }
+                                else
+                                {
+                                    <span>🔍 Buscar Dirección</span>
+                                }
                             </button>
-                            @if (!string.IsNullOrEmpty(eircode))
+                        </div>
+                        <small class="form-hint">Ingresa el Eircode y haz clic en "Buscar Dirección" para autocompletar</small>
+                    </div>
+
+                    <!-- Address Autocomplete (Fallback) -->
+                    <div class="form-group">
+                        <label class="form-label">O busca la dirección manualmente</label>
+                        <div class="input-group">
+                            <span class="input-icon">📍</span>
+                            <input type="text"
+                                   id="address-autocomplete-input"
+                                   class="form-input with-icon"
+                                   placeholder="Empieza a escribir la dirección..."
+                                   @ref="autocompleteInput" />
+                            @if (hasAddress)
                             {
-                                <button class="btn-search btn-map" 
-                                        @onclick="OpenInMap" 
-                                        type="button"
-                                        title="Ver en Google Maps">
-                                    📍 Ver mapa
-                                </button>
+                                <span class="address-check">✓</span>
                             }
                         </div>
-                        <small class="form-hint">Ingresa el Eircode para autocompletar la dirección</small>
+                        <small class="form-hint">Empieza a escribir para ver sugerencias de direcciones en Irlanda</small>
                     </div>
 
                     <!-- Dirección Línea 1 -->
                     <div class="form-group">
-                        <label class="form-label">Dirección</label>
-                        <input type="text" 
+                        <label class="form-label">Dirección (Calle y Número)</label>
+                        <input type="text"
                                id="addressInput"
-                               class="form-input" 
-                               @bind="addressLine1" 
+                               class="form-input"
+                               @bind="addressLine1"
                                placeholder="123 Main Street" />
                     </div>
 
@@ -141,21 +159,21 @@
                                placeholder="Apt 4B" />
                     </div>
 
-                    <!-- Ciudad -->
+                    <!-- Ciudad, County -->
                     <div class="form-row">
                         <div class="form-group">
                             <label class="form-label">Ciudad</label>
-                            <input type="text" 
-                                   class="form-input" 
-                                   @bind="city" 
+                            <input type="text"
+                                   class="form-input"
+                                   @bind="city"
                                    placeholder="Drogheda" />
                         </div>
 
                         <div class="form-group">
                             <label class="form-label">County</label>
-                            <input type="text" 
-                                   class="form-input" 
-                                   @bind="county" 
+                            <input type="text"
+                                   class="form-input"
+                                   @bind="county"
                                    placeholder="Louth" />
                         </div>
                     </div>
@@ -169,10 +187,23 @@
                                   placeholder="Instrucciones especiales, referencias, etc."></textarea>
                     </div>
 
-                    @if (latitude.HasValue && longitude.HasValue)
+                    <!-- Map Preview -->
+                    @if (showMapPreview && latitude.HasValue && longitude.HasValue)
                     {
-                        <div class="location-indicator">
-                            📍 Ubicación: @latitude.Value.ToString("F6"), @longitude.Value.ToString("F6")
+                        <div class="map-preview-container">
+                            <div class="map-preview-header">
+                                <span>📍 Ubicación del Cliente</span>
+                                <button class="btn-link" @onclick="ClearAddress" type="button">
+                                    🗑️ Limpiar Dirección
+                                </button>
+                            </div>
+                            <div id="map-preview" class="map-preview"></div>
+                            <div class="map-attribution">
+                                <small>Powered by Google Maps</small>
+                            </div>
+                            <div class="location-details">
+                                <small>Coordenadas: @latitude.Value.ToString("F6"), @longitude.Value.ToString("F6")</small>
+                            </div>
                         </div>
                     }
                 </form>
@@ -201,9 +232,10 @@
 
     private bool IsEditMode => ExistingCustomer != null;
     private ElementReference modalElement;
+    private ElementReference autocompleteInput;
     private bool isInitialRender = true;
     private bool _wasOpen = false; // Rastrear estado anterior
-    
+
     private string phone = "";
     private string name = "";
     private string email = "";
@@ -217,10 +249,16 @@
     private double? longitude;
 
     private bool isSearching = false;
-    private bool isSearchingAddress = false;
+    private bool isGeocodingEircode = false;
     private bool isSaving = false;
     private string errorMessage = "";
     private Customer? existingCustomer = null;
+
+    // Google Maps Autocomplete
+    private DotNetObjectReference<CustomerModal>? dotNetRef;
+    private bool mapsInitialized = false;
+    private bool showMapPreview = false;
+    private bool hasAddress => !string.IsNullOrEmpty(addressLine1) && latitude.HasValue && longitude.HasValue;
 
     protected override void OnParametersSet()
     {
@@ -229,10 +267,10 @@
         if (IsOpen && !_wasOpen) // Modal acaba de abrirse
         {
             Logger.LogInformation("🆕 Modal abierto por primera vez - Inicializando");
-            
+
             // Prevenir cierre inmediato en el primer render
             isInitialRender = true;
-            
+
             if (ExistingCustomer != null)
             {
                 LoadCustomer(ExistingCustomer);
@@ -241,7 +279,7 @@
             {
                 ClearForm();
             }
-            
+
             // Permitir clicks después de 300ms
             Task.Delay(300).ContinueWith(_ => isInitialRender = false);
         }
@@ -250,9 +288,230 @@
             Logger.LogInformation("🔒 Modal cerrado - Limpiando estado");
             ClearForm();
         }
-        
+
         // Actualizar estado anterior
         _wasOpen = IsOpen;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            dotNetRef = DotNetObjectReference.Create(this);
+        }
+
+        if (IsOpen && !mapsInitialized)
+        {
+            await InitializeGoogleMaps();
+        }
+    }
+
+    private async Task InitializeGoogleMaps()
+    {
+        try
+        {
+            Logger.LogInformation("🗺️ Inicializando Google Maps Autocomplete");
+
+            // Check if Google Maps is loaded
+            var isLoaded = await JS.InvokeAsync<bool>("isGoogleMapsLoaded");
+            if (!isLoaded)
+            {
+                Logger.LogWarning("⚠️ Google Maps no está cargado aún, esperando...");
+                await Task.Delay(1000);
+                return;
+            }
+
+            // Initialize autocomplete
+            await JS.InvokeVoidAsync("googleMapsInterop.initAutocomplete",
+                "address-autocomplete-input", dotNetRef);
+
+            // Initialize map preview if coordinates exist
+            if (latitude.HasValue && longitude.HasValue)
+            {
+                await JS.InvokeVoidAsync("googleMapsInterop.initMapPreview",
+                    "map-preview", latitude.Value, longitude.Value);
+                showMapPreview = true;
+            }
+
+            mapsInitialized = true;
+            Logger.LogInformation("✅ Google Maps inicializado correctamente");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "❌ Error inicializando Google Maps");
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnPlaceSelected(JsonElement placeData)
+    {
+        try
+        {
+            Logger.LogInformation("📍 Lugar seleccionado desde autocomplete");
+
+            // Extract data from JSON
+            if (placeData.TryGetProperty("address_line1", out var addr1))
+                addressLine1 = addr1.GetString() ?? "";
+
+            if (placeData.TryGetProperty("address_line2", out var addr2))
+                addressLine2 = addr2.GetString() ?? "";
+
+            if (placeData.TryGetProperty("city", out var cityProp))
+                city = cityProp.GetString() ?? "Drogheda";
+
+            if (placeData.TryGetProperty("county", out var countyProp))
+                county = countyProp.GetString() ?? "Louth";
+
+            if (placeData.TryGetProperty("eircode", out var eircodeProp))
+                eircode = eircodeProp.GetString() ?? "";
+
+            if (placeData.TryGetProperty("latitude", out var latProp))
+                latitude = latProp.GetDouble();
+
+            if (placeData.TryGetProperty("longitude", out var lngProp))
+                longitude = lngProp.GetDouble();
+
+            Logger.LogInformation("✅ Dirección completada: {Address}, {City}, {County}",
+                addressLine1, city, county);
+
+            // Update map preview
+            if (latitude.HasValue && longitude.HasValue)
+            {
+                if (!showMapPreview)
+                {
+                    await JS.InvokeVoidAsync("googleMapsInterop.initMapPreview",
+                        "map-preview", latitude.Value, longitude.Value);
+                    showMapPreview = true;
+                }
+                else
+                {
+                    await JS.InvokeVoidAsync("googleMapsInterop.updateMapPreview",
+                        latitude.Value, longitude.Value);
+                }
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error procesando lugar seleccionado");
+            errorMessage = "Error al procesar la dirección seleccionada";
+            StateHasChanged();
+        }
+    }
+
+    private async Task ClearAddress()
+    {
+        Logger.LogInformation("🗑️ Limpiando dirección");
+
+        addressLine1 = "";
+        addressLine2 = "";
+        city = "Drogheda";
+        county = "Louth";
+        eircode = "";
+        latitude = null;
+        longitude = null;
+        showMapPreview = false;
+
+        try
+        {
+            await JS.InvokeVoidAsync("googleMapsInterop.clearAutocomplete",
+                "address-autocomplete-input");
+            await JS.InvokeVoidAsync("googleMapsInterop.hideMap", "map-preview");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error limpiando autocomplete");
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task GeocodeEircode()
+    {
+        if (string.IsNullOrWhiteSpace(eircode))
+        {
+            errorMessage = "Por favor ingresa un Eircode";
+            return;
+        }
+
+        isGeocodingEircode = true;
+        errorMessage = "";
+        StateHasChanged();
+
+        try
+        {
+            Logger.LogInformation("🔍 Geocoding Eircode: {Eircode}", eircode);
+
+            var result = await ApiService.GeocodeEircodeAsync(eircode);
+
+            if (result == null)
+            {
+                errorMessage = "Error al buscar el Eircode. Por favor intenta de nuevo.";
+                isGeocodingEircode = false;
+                StateHasChanged();
+                return;
+            }
+
+            if (!result.Found)
+            {
+                errorMessage = "Eircode not found - please enter address manually using the autocomplete field below";
+                Logger.LogWarning("❌ Eircode no encontrado: {Eircode}", eircode);
+                isGeocodingEircode = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Success! Fill in the address fields
+            Logger.LogInformation("✅ Eircode geocoded successfully: {Address}", result.FormattedAddress);
+
+            if (!string.IsNullOrEmpty(result.AddressLine1))
+                addressLine1 = result.AddressLine1;
+
+            if (!string.IsNullOrEmpty(result.AddressLine2))
+                addressLine2 = result.AddressLine2;
+
+            if (!string.IsNullOrEmpty(result.City))
+                city = result.City;
+
+            if (!string.IsNullOrEmpty(result.County))
+                county = result.County;
+
+            if (!string.IsNullOrEmpty(result.Eircode))
+                eircode = result.Eircode;
+
+            latitude = result.Latitude;
+            longitude = result.Longitude;
+
+            // Show map preview
+            if (latitude.HasValue && longitude.HasValue)
+            {
+                if (!showMapPreview)
+                {
+                    await JS.InvokeVoidAsync("googleMapsInterop.initMapPreview",
+                        "map-preview", latitude.Value, longitude.Value);
+                    showMapPreview = true;
+                }
+                else
+                {
+                    await JS.InvokeVoidAsync("googleMapsInterop.updateMapPreview",
+                        latitude.Value, longitude.Value);
+                }
+            }
+
+            // Clear error message on success
+            errorMessage = "";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error geocoding Eircode");
+            errorMessage = "Error al buscar el Eircode: " + ex.Message;
+        }
+        finally
+        {
+            isGeocodingEircode = false;
+            StateHasChanged();
+        }
     }
 
     private void HandleBackdropClick()
@@ -351,65 +610,6 @@
         existingCustomer = null;
     }
 
-    private async Task OpenInMap()
-    {
-        if (string.IsNullOrWhiteSpace(eircode)) return;
-        Logger.LogInformation("📍 Abriendo Google Maps para Eircode: {Eircode}", eircode);
-        await JS.InvokeVoidAsync("openInGoogleMaps", eircode);
-    }
-
-    private async Task SearchAddress()
-    {
-        if (string.IsNullOrWhiteSpace(eircode))
-        {
-            errorMessage = "Por favor ingresa un Eircode";
-            StateHasChanged();
-            return;
-        }
-
-        isSearchingAddress = true;
-        errorMessage = "";
-        StateHasChanged();
-
-        try
-        {
-            await JS.InvokeVoidAsync("searchAddressByEircode", eircode, 
-                DotNetObjectReference.Create(this));
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error buscando dirección");
-            errorMessage = "Error al buscar la dirección";
-            isSearchingAddress = false;
-            StateHasChanged();
-        }
-    }
-
-    [JSInvokable]
-    public void OnAddressFound(string addressLine, string cityResult, double lat, double lng)
-    {
-        Logger.LogInformation("✅ Dirección recibida de JavaScript - Dirección: {Address}, Ciudad: {City}, Coordenadas: ({Lat}, {Lng})", 
-            addressLine, cityResult, lat, lng);
-        
-        addressLine1 = addressLine;
-        city = cityResult;
-        latitude = lat;
-        longitude = lng;
-        isSearchingAddress = false;
-        
-        StateHasChanged();
-        
-        Logger.LogInformation("✅ Campos actualizados en el modal");
-    }
-
-    [JSInvokable]
-    public void OnAddressError(string error)
-    {
-        Logger.LogError("❌ Error desde JavaScript: {Error}", error);
-        errorMessage = error;
-        isSearchingAddress = false;
-        StateHasChanged();
-    }
 
     private async Task SaveCustomer()
     {
@@ -477,8 +677,25 @@
 
     private bool IsValid()
     {
-        return !string.IsNullOrWhiteSpace(phone) && 
+        return !string.IsNullOrWhiteSpace(phone) &&
                !string.IsNullOrWhiteSpace(name) &&
                phone.Length >= 9;
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            dotNetRef?.Dispose();
+            // Clean up Google Maps resources
+            if (mapsInitialized)
+            {
+                JS.InvokeVoidAsync("googleMapsInterop.dispose").AsTask().Wait(TimeSpan.FromSeconds(1));
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error disposing CustomerModal");
+        }
     }
 }

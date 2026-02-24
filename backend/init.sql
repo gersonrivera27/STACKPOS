@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS products (
     image_url VARCHAR(500),
     is_available BOOLEAN DEFAULT TRUE,
     sort_order INTEGER DEFAULT 0,
+    stock_quantity INTEGER DEFAULT 100,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
