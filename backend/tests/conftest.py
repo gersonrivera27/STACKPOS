@@ -58,6 +58,20 @@ def mock_get_db():
 # Override the DB dependency globally for all tests
 app.dependency_overrides[get_db] = mock_get_db
 
+from app.security import obtener_usuario_actual
+
+def override_obtener_usuario_actual():
+    return {
+        "id": 1,
+        "username": "testuser",
+        "email": "test@burgerpos.com",
+        "role": "admin",
+        "is_active": True,
+        "created_at": "2023-01-01T00:00:00Z"
+    }
+
+app.dependency_overrides[obtener_usuario_actual] = override_obtener_usuario_actual
+
 
 @pytest.fixture(scope="session")
 def client():

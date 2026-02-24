@@ -1,12 +1,13 @@
 """
 Router para gestión de clientes
 """
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from typing import List, Optional
 import psycopg2
 
 from ..database import get_db
 from ..models.customer import Customer, CustomerCreate, CustomerUpdate
+from ..security import obtener_usuario_actual
 
 router = APIRouter()
 
@@ -14,7 +15,8 @@ router = APIRouter()
 def get_customers(
     search: Optional[str] = None,
     limit: int = 100,
-    conn = Depends(get_db)
+    conn = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual)
 ):
     """Obtener todos los clientes con búsqueda opcional"""
     cursor = conn.cursor()
@@ -35,7 +37,7 @@ def get_customers(
     return customers
 
 @router.get("/search-by-phone/{phone}")
-def search_by_phone(phone: str, conn = Depends(get_db)):
+def search_by_phone(phone: str, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Buscar cliente por teléfono"""
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM customers WHERE phone = %s", (phone,))
@@ -46,7 +48,7 @@ def search_by_phone(phone: str, conn = Depends(get_db)):
     return {"found": False, "customer": None}
 
 @router.get("/{customer_id}", response_model=Customer)
-def get_customer(customer_id: int, conn = Depends(get_db)):
+def get_customer(customer_id: int, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Obtener un cliente por ID"""
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM customers WHERE id = %s", (customer_id,))
@@ -58,7 +60,7 @@ def get_customer(customer_id: int, conn = Depends(get_db)):
     return customer
 
 @router.post("", response_model=Customer, status_code=status.HTTP_201_CREATED)
-def create_customer(customer: CustomerCreate, conn = Depends(get_db)):
+def create_customer(customer: CustomerCreate, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Crear un nuevo cliente"""
     cursor = conn.cursor()
     
@@ -84,7 +86,8 @@ def create_customer(customer: CustomerCreate, conn = Depends(get_db)):
 def update_customer(
     customer_id: int, 
     customer: CustomerUpdate, 
-    conn = Depends(get_db)
+    conn = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual)
 ):
     """Actualizar un cliente"""
     cursor = conn.cursor()
@@ -147,7 +150,7 @@ def update_customer(
     return updated_customer
 
 @router.delete("/{customer_id}")
-def delete_customer(customer_id: int, conn = Depends(get_db)):
+def delete_customer(customer_id: int, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Desactivar un cliente (soft delete)"""
     cursor = conn.cursor()
     cursor.execute(

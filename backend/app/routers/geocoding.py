@@ -2,7 +2,8 @@
 Geocoding router - Google Geocoding API integration
 """
 import math
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
+from ..security import obtener_usuario_actual
 from pydantic import BaseModel
 from typing import Optional
 import httpx
@@ -428,7 +429,7 @@ EIRCODE_AREA_MAP = {
 
 
 @router.get("/api/geocoding/eircode", response_model=GeocodeResponse)
-async def geocode_eircode(code: str = Query(..., description="Irish Eircode to geocode")):
+async def geocode_eircode(code: str = Query(..., description="Irish Eircode to geocode"), usuario = Depends(obtener_usuario_actual)):
     """
     Geocode an Irish Eircode using multiple strategies:
     

@@ -2,6 +2,7 @@
 Router para gestión de categorías
 """
 from fastapi import APIRouter, HTTPException, Depends, status
+from ..security import obtener_usuario_actual, verificar_rol
 from typing import List
 import psycopg2
 
@@ -11,7 +12,7 @@ from ..models.category import Category, CategoryCreate, CategoryUpdate
 router = APIRouter()
 
 @router.get("", response_model=List[Category])
-def get_categories(conn = Depends(get_db)):
+def get_categories(conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Obtener todas las categorías"""
     cursor = conn.cursor()
     cursor.execute("""
@@ -23,7 +24,7 @@ def get_categories(conn = Depends(get_db)):
     return categories
 
 @router.get("/{category_id}", response_model=Category)
-def get_category(category_id: int, conn = Depends(get_db)):
+def get_category(category_id: int, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Obtener categoría por ID"""
     cursor = conn.cursor()
     cursor.execute("""
@@ -39,7 +40,7 @@ def get_category(category_id: int, conn = Depends(get_db)):
     return category
 
 @router.post("", response_model=Category, status_code=status.HTTP_201_CREATED)
-def create_category(category: CategoryCreate, conn = Depends(get_db)):
+def create_category(category: CategoryCreate, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):
     """Crear nueva categoría"""
     cursor = conn.cursor()
     
@@ -62,7 +63,7 @@ def create_category(category: CategoryCreate, conn = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.put("/{category_id}", response_model=Category)
-def update_category(category_id: int, category: CategoryUpdate, conn = Depends(get_db)):
+def update_category(category_id: int, category: CategoryUpdate, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):
     """Actualizar categoría"""
     cursor = conn.cursor()
     
@@ -108,7 +109,7 @@ def update_category(category_id: int, category: CategoryUpdate, conn = Depends(g
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/{category_id}")
-def delete_category(category_id: int, conn = Depends(get_db)):
+def delete_category(category_id: int, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):
     """Eliminar categoría"""
     cursor = conn.cursor()
     cursor.execute("""

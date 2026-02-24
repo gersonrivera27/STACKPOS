@@ -2,6 +2,7 @@
 Audit router: exposes audit_logs stored by the audit consumer.
 """
 from fastapi import APIRouter, Depends, Query
+from ..security import verificar_rol
 from typing import Optional
 
 from ..database import get_db
@@ -15,6 +16,7 @@ def list_audit_logs(
     username: Optional[str] = Query(None, description="Filter by username"),
     limit: int = Query(50, ge=1, le=500),
     conn=Depends(get_db),
+    usuario=Depends(verificar_rol("admin")),
 ):
     """Return audit log entries, most recent first."""
     cursor = conn.cursor()

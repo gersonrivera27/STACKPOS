@@ -7,15 +7,18 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from typing import Annotated, List
 
 from ..database import get_db
-from ..schemas.user import LoginRequest, LoginResponse, UsuarioResponse, User, PinLoginRequest
+from ..schemas.user import LoginRequest, LoginResponse, UsuarioResponse, User, PinLoginRequest, RefreshTokenRequest
 from ..security import (
     autenticar_usuario,
     crear_token,
+    crear_refresh_token,
+    decodificar_refresh_token,
     obtener_usuario_actual,
     verificar_rol,
     verificar_password
 )
 from ..core.rabbitmq import mq, get_client_ip
+from ..core.rate_limiter import rate_limiter
 
 router = APIRouter()
 
@@ -30,23 +33,40 @@ async def login(
     conn = Depends(get_db)
 ):
     """
-    Iniciar sesión con username o email
-
-    Returns:
-        LoginResponse con token JWT y datos del usuario
+    Iniciar sesion con username o email.
+    Rate limited: 5 intentos por IP cada 15 min.
+    Account lockout: 5 fallos bloquean la cuenta 15 min.
     """
-    # Obtener IP del cliente
     client_ip = get_client_ip(request)
 
+    # Rate limit check (by IP)
+    allowed, retry_after = rate_limiter.check_login_rate_limit(client_ip)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Demasiados intentos de login. Intente de nuevo en {retry_after} segundos.",
+            headers={"Retry-After": str(retry_after)}
+        )
+
+    # Account lockout check
+    locked, lock_retry = rate_limiter.is_account_locked(datos.username_or_email)
+    if locked:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Cuenta bloqueada temporalmente. Intente en {lock_retry} segundos.",
+            headers={"Retry-After": str(lock_retry)}
+        )
+
+    # Record this attempt for rate limiting
+    rate_limiter.record_login_attempt(client_ip)
+
     # Autenticar usuario
-    usuario = autenticar_usuario(
-        conn,
-        datos.username_or_email,
-        datos.password
-    )
+    usuario = autenticar_usuario(conn, datos.username_or_email, datos.password)
 
     if not usuario:
-        # 🔥 EVENTO DE SEGURIDAD: Login fallido
+        # Record failed login for account lockout
+        rate_limiter.record_failed_login(datos.username_or_email)
+
         await mq.publish_security_event(
             event="login_failed",
             username=datos.username_or_email,
@@ -58,16 +78,12 @@ async def login(
                 "user_agent": request.headers.get('user-agent', 'Unknown')
             }
         )
-
-        # También publicar a audit.auth
         await mq.publish_auth_event(
             event="login_failed",
             username=datos.username_or_email,
             ip_address=client_ip,
             success=False,
-            metadata={
-                "reason": "Invalid credentials"
-            }
+            metadata={"reason": "Invalid credentials"}
         )
 
         return LoginResponse(
@@ -75,20 +91,21 @@ async def login(
             mensaje="Credenciales incorrectas"
         )
 
-    # 🔥 EVENTO: Login exitoso
+    # Clear lockout on successful login
+    rate_limiter.clear_failed_logins(datos.username_or_email)
+
     await mq.publish_auth_event(
         event="login_success",
         username=usuario['username'],
         user_id=usuario['id'],
         ip_address=client_ip,
         success=True,
-        metadata={
-            "role": usuario['role']
-        }
+        metadata={"role": usuario['role']}
     )
 
-    # Generar token JWT
+    # Generar token JWT y refresh token
     token = crear_token(usuario)
+    refresh_token = crear_refresh_token(usuario)
 
     # Preparar respuesta
     usuario_response = UsuarioResponse(
@@ -104,6 +121,7 @@ async def login(
         exito=True,
         mensaje="Login exitoso",
         token=token,
+        refresh_token=refresh_token,
         usuario=usuario_response
     )
 
@@ -171,8 +189,21 @@ async def login_con_pin(
     datos: PinLoginRequest,
     conn = Depends(get_db)
 ):
-    """Login usando PIN"""
+    """
+    Login usando PIN.
+    Rate limited: 5 intentos por IP cada 15 min.
+    """
     client_ip = get_client_ip(request)
+
+    # Rate limit check
+    allowed, retry_after = rate_limiter.check_login_rate_limit(client_ip)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Demasiados intentos. Intente en {retry_after} segundos.",
+            headers={"Retry-After": str(retry_after)}
+        )
+    rate_limiter.record_login_attempt(client_ip)
 
     cursor = conn.cursor()
     # First find user by ID only
@@ -192,16 +223,16 @@ async def login_con_pin(
             is_valid_pin = (datos.pin == pin_hash)
 
     if not usuario or not is_valid_pin:
-        # 🔥 EVENTO: PIN login fallido
+        # Record failed PIN attempt for lockout
+        rate_limiter.record_failed_login(f"pin_user_{datos.user_id}")
+
         await mq.publish_security_event(
             event="pin_login_failed",
             username=f"user_id_{datos.user_id}",
             ip_address=client_ip,
             reason="Invalid PIN or User not found",
             severity="MEDIUM",
-            metadata={
-                "user_id": datos.user_id
-            }
+            metadata={"user_id": datos.user_id}
         )
 
         return LoginResponse(
@@ -209,20 +240,21 @@ async def login_con_pin(
             mensaje="PIN incorrecto"
         )
 
-    # 🔥 EVENTO: PIN login exitoso
+    # Clear lockout on success
+    rate_limiter.clear_failed_logins(f"pin_user_{datos.user_id}")
+
     await mq.publish_auth_event(
         event="pin_login_success",
         username=usuario['username'],
         user_id=usuario['id'],
         ip_address=client_ip,
         success=True,
-        metadata={
-            "login_method": "PIN"
-        }
+        metadata={"login_method": "PIN"}
     )
 
-    # Generar token
+    # Generar tokens
     token = crear_token(usuario)
+    refresh_token = crear_refresh_token(usuario)
 
     usuario_response = UsuarioResponse(
         id=usuario['id'],
@@ -237,10 +269,62 @@ async def login_con_pin(
         exito=True,
         mensaje="Login exitoso",
         token=token,
+        refresh_token=refresh_token,
         usuario=usuario_response
     )
 
 # ============================================
+
+@router.post("/refresh", response_model=LoginResponse)
+async def refresh_access_token(
+    datos: RefreshTokenRequest,
+    conn = Depends(get_db)
+):
+    """
+    Renovar access token usando un refresh token válido (7 días)
+    """
+    try:
+        # Esto lanzará HTTPException si el token es inválido o no es tipo "refresh"
+        payload = decodificar_refresh_token(datos.refresh_token)
+        usuario_id = payload.get("usuario_id")
+        
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE id = %s AND is_active = TRUE", (usuario_id,))
+        usuario = cursor.fetchone()
+        
+        if not usuario:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuario inactivo o no encontrado"
+            )
+            
+        # Generar nuevos tokens (Access + Refresh) para mantener la sesión rotando
+        token = crear_token(usuario)
+        refresh_token = crear_refresh_token(usuario)
+        
+        usuario_response = UsuarioResponse(
+            id=usuario['id'],
+            username=usuario['username'],
+            email=usuario['email'],
+            full_name=usuario.get('full_name'),
+            role=usuario['role'],
+            is_active=usuario['is_active']
+        )
+        
+        return LoginResponse(
+            exito=True,
+            mensaje="Token refrescado",
+            token=token,
+            refresh_token=refresh_token,
+            usuario=usuario_response
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Error al procesar el refresh token"
+        )
 
 @router.get("/admin/test")
 async def test_admin(

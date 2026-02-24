@@ -13,6 +13,7 @@ public class AuthStateProvider : AuthenticationStateProvider
 {
     private readonly ILocalStorageService _localStorage;
     private const string TOKEN_KEY = "authToken";
+    private const string REFRESH_TOKEN_KEY = "refreshToken";
 
     public AuthStateProvider(ILocalStorageService localStorage)
     {
@@ -62,6 +63,7 @@ public class AuthStateProvider : AuthenticationStateProvider
                     await LogToBrowser($"🔐 AuthStateProvider: Error parseando token: {ex.Message}");
                     // Token inválido - limpiar
                     await _localStorage.RemoveItemAsync(TOKEN_KEY);
+                    await _localStorage.RemoveItemAsync(REFRESH_TOKEN_KEY);
                     return new AuthenticationState(
                         new ClaimsPrincipal(new ClaimsIdentity())
                     );
@@ -102,12 +104,16 @@ public class AuthStateProvider : AuthenticationStateProvider
     /// <summary>
     /// Marcar usuario como autenticado y guardar token
     /// </summary>
-    public async Task MarkUserAsAuthenticated(string token)
+    public async Task MarkUserAsAuthenticated(string token, string refreshToken = "")
     {
         try
         {
             await LogToBrowser("🔐 AuthStateProvider: MarkUserAsAuthenticated llamado");
             await _localStorage.SetItemAsync(TOKEN_KEY, token);
+            if (!string.IsNullOrEmpty(refreshToken))
+            {
+                await _localStorage.SetItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+            }
             await LogToBrowser("🔐 AuthStateProvider: Token guardado en LocalStorage");
             
             var claims = ParseClaimsFromJwt(token);
@@ -129,6 +135,7 @@ public class AuthStateProvider : AuthenticationStateProvider
     {
         await LogToBrowser("🔐 AuthStateProvider: MarkUserAsLoggedOut llamado");
         await _localStorage.RemoveItemAsync(TOKEN_KEY);
+        await _localStorage.RemoveItemAsync(REFRESH_TOKEN_KEY);
         
         var anonymous = new ClaimsPrincipal(new ClaimsIdentity());
         NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(anonymous)));
@@ -140,6 +147,14 @@ public class AuthStateProvider : AuthenticationStateProvider
     public async Task<string?> GetToken()
     {
         return await _localStorage.GetItemAsync<string>(TOKEN_KEY);
+    }
+
+    /// <summary>
+    /// Obtener el refresh token almacenado
+    /// </summary>
+    public async Task<string?> GetRefreshToken()
+    {
+        return await _localStorage.GetItemAsync<string>(REFRESH_TOKEN_KEY);
     }
 
     /// <summary>

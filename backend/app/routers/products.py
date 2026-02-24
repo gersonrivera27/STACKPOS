@@ -2,6 +2,7 @@
 Router para gestión de productos
 """
 from fastapi import APIRouter, HTTPException, Depends, status
+from ..security import obtener_usuario_actual, verificar_rol
 from typing import List, Optional
 
 from ..database import get_db
@@ -14,14 +15,15 @@ router = APIRouter()
 def get_products(
     category_id: Optional[int] = None,
     available_only: bool = True,
-    conn = Depends(get_db)
+    conn = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual)
 ):
     """Obtener todos los productos disponibles"""
     repo = ProductRepository(conn)
     return repo.get_all(category_id, available_only)
 
 @router.get("/{product_id}", response_model=ProductWithCategory)
-def get_product(product_id: int, conn = Depends(get_db)):
+def get_product(product_id: int, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Obtener producto por ID"""
     repo = ProductRepository(conn)
     product = repo.get_by_id(product_id)
@@ -32,7 +34,7 @@ def get_product(product_id: int, conn = Depends(get_db)):
     return product
 
 @router.post("", response_model=Product, status_code=status.HTTP_201_CREATED)
-def create_product(product: ProductCreate, conn = Depends(get_db)):
+def create_product(product: ProductCreate, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):
     """Crear nuevo producto"""
     repo = ProductRepository(conn)
     
@@ -50,7 +52,7 @@ def create_product(product: ProductCreate, conn = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.put("/{product_id}", response_model=Product)
-def update_product(product_id: int, product: ProductUpdate, conn = Depends(get_db)):
+def update_product(product_id: int, product: ProductUpdate, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):
     """Actualizar producto"""
     repo = ProductRepository(conn)
     
@@ -79,7 +81,7 @@ def update_product(product_id: int, product: ProductUpdate, conn = Depends(get_d
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete("/{product_id}")
-def delete_product(product_id: int, conn = Depends(get_db)):
+def delete_product(product_id: int, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):
     """Desactivar producto (soft delete)"""
     repo = ProductRepository(conn)
     

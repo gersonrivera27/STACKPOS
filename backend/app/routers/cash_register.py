@@ -2,6 +2,7 @@
 Router para sistema de caja y pagos
 """
 from fastapi import APIRouter, HTTPException, Depends, status
+from ..security import obtener_usuario_actual
 from typing import List, Optional
 from decimal import Decimal
 from datetime import datetime
@@ -20,7 +21,7 @@ router = APIRouter()
 # ============================================
 
 @router.post("/sessions", response_model=CashSession, status_code=status.HTTP_201_CREATED)
-def open_cash_session(session_data: CashSessionCreate, conn = Depends(get_db)):
+def open_cash_session(session_data: CashSessionCreate, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Abrir una nueva sesión de caja"""
     cursor = conn.cursor()
     
@@ -61,7 +62,7 @@ def open_cash_session(session_data: CashSessionCreate, conn = Depends(get_db)):
 
 
 @router.get("/sessions/active", response_model=Optional[CashSession])
-def get_active_session(user_id: Optional[int] = None, conn = Depends(get_db)):
+def get_active_session(user_id: Optional[int] = None, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Obtener sesión de caja activa (abierta)"""
     cursor = conn.cursor()
     
@@ -87,7 +88,7 @@ def get_active_session(user_id: Optional[int] = None, conn = Depends(get_db)):
 
 
 @router.get("/sessions/{session_id}", response_model=CashSession)
-def get_session(session_id: int, conn = Depends(get_db)):
+def get_session(session_id: int, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Obtener detalles de una sesión de caja"""
     cursor = conn.cursor()
     
@@ -108,7 +109,7 @@ def get_session(session_id: int, conn = Depends(get_db)):
 
 
 @router.get("/sessions/{session_id}/summary", response_model=CashSessionSummary)
-def get_session_summary(session_id: int, conn = Depends(get_db)):
+def get_session_summary(session_id: int, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Obtener resumen de sesión para cierre"""
     cursor = conn.cursor()
     
@@ -159,7 +160,8 @@ def get_session_summary(session_id: int, conn = Depends(get_db)):
 def close_cash_session(
     session_id: int, 
     close_data: CashSessionClose, 
-    conn = Depends(get_db)
+    conn = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual)
 ):
     """Cerrar sesión de caja"""
     cursor = conn.cursor()
@@ -221,7 +223,7 @@ def close_cash_session(
 # ============================================
 
 @router.post("/payments", response_model=PaymentResponse, status_code=status.HTTP_201_CREATED)
-def create_payment(payment_data: PaymentCreate, conn = Depends(get_db)):
+def create_payment(payment_data: PaymentCreate, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Registrar un pago para una orden"""
     cursor = conn.cursor()
     
@@ -301,7 +303,7 @@ def create_payment(payment_data: PaymentCreate, conn = Depends(get_db)):
 
 
 @router.get("/payments/order/{order_id}", response_model=Optional[PaymentResponse])
-def get_payment_by_order(order_id: int, conn = Depends(get_db)):
+def get_payment_by_order(order_id: int, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Obtener pago de una orden específica"""
     cursor = conn.cursor()
     
@@ -322,7 +324,8 @@ def get_payment_by_order(order_id: int, conn = Depends(get_db)):
 def get_sessions(
     status: Optional[str] = None,
     limit: int = 20,
-    conn = Depends(get_db)
+    conn = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual)
 ):
     """Listar sesiones de caja"""
     cursor = conn.cursor()

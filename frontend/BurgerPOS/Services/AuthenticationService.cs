@@ -49,7 +49,7 @@ public class AuthenticationService
                     _logger.LogInformation("Login exitoso para usuario: {Username}", username);
                     
                     // Guardar token y actualizar estado de autenticación
-                    await _authStateProvider.MarkUserAsAuthenticated(result.Token);
+                    await _authStateProvider.MarkUserAsAuthenticated(result.Token, result.RefreshToken ?? "");
                     
                     return true;
                 }
@@ -110,7 +110,7 @@ public class AuthenticationService
                 var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
                 if (result?.Exito == true && !string.IsNullOrEmpty(result.Token))
                 {
-                    await _authStateProvider.MarkUserAsAuthenticated(result.Token);
+                    await _authStateProvider.MarkUserAsAuthenticated(result.Token, result.RefreshToken ?? "");
                     return true;
                 }
             }

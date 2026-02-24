@@ -2,6 +2,7 @@
 Router para gestión de órdenes
 """
 from fastapi import APIRouter, HTTPException, Depends, status, BackgroundTasks
+from ..security import obtener_usuario_actual
 from typing import List, Optional
 from decimal import Decimal
 from datetime import datetime
@@ -35,7 +36,7 @@ class OrderItemsUpdate(BaseModel):
     remove_item_ids: list[int] = []
 
 @router.post("", response_model=Order, status_code=status.HTTP_201_CREATED)
-async def create_order(order_data: OrderCreate, background_tasks: BackgroundTasks, conn = Depends(get_db)):
+async def create_order(order_data: OrderCreate, background_tasks: BackgroundTasks, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Crear nueva orden con items vinculada a la sesión de caja activa"""
     cursor = conn.cursor()
     
@@ -250,7 +251,7 @@ async def create_order(order_data: OrderCreate, background_tasks: BackgroundTask
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/{order_id}", response_model=OrderWithDetails)
-def get_order(order_id: int, conn = Depends(get_db)):
+def get_order(order_id: int, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Obtener orden con todos sus detalles"""
     cursor = conn.cursor()
     
@@ -312,7 +313,8 @@ def get_orders(
     order_type: Optional[str] = None,
     only_active_session: bool = False,
     limit: int = 50,
-    conn = Depends(get_db)
+    conn = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual)
 ):
     """Obtener órdenes con filtros opcionales"""
     cursor = conn.cursor()
@@ -365,8 +367,9 @@ def get_orders(
 @router.post("/{order_id}/items", response_model=OrderWithDetails)
 def update_order_items(
     order_id: int,
-    payload: OrderItemsUpdate,
-    conn = Depends(get_db)
+    items_data: OrderItemsUpdate, # Renamed payload to items_data
+    conn = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual) # Added usuario param
 ):
     """Agregar y/o quitar items a una orden existente y recalcular totales."""
     cursor = conn.cursor()
@@ -377,15 +380,15 @@ def update_order_items(
             raise HTTPException(status_code=404, detail="Orden no encontrada")
 
         # Eliminar items solicitados
-        if payload.remove_item_ids:
-            ids_tuple = tuple(payload.remove_item_ids)
+        if items_data.remove_item_ids:
+            ids_tuple = tuple(items_data.remove_item_ids)
             cursor.execute(
                 f"DELETE FROM order_items WHERE order_id = %s AND id IN %s",
                 (order_id, ids_tuple)
             )
 
         # Agregar nuevos items
-        for item in payload.add_items:
+        for item in items_data.add_items:
             cursor.execute("""
                 SELECT id, name, price, is_available 
                 FROM products 
@@ -466,7 +469,7 @@ def update_order_items(
         conn.commit()
 
         # Devolver orden con detalles
-        return get_order(order_id, conn)
+        return get_order(order_id, conn, usuario)
 
     except HTTPException:
         conn.rollback()
@@ -480,7 +483,8 @@ async def update_order_status(
     order_id: int,
     new_status: OrderStatus,
     background_tasks: BackgroundTasks,
-    conn = Depends(get_db)
+    conn = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual)
 ):
     """Actualizar estado de una orden"""
     cursor = conn.cursor()

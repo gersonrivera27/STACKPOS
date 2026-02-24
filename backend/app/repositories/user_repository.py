@@ -4,7 +4,7 @@ Repositorio para usuarios
 from typing import Optional
 from datetime import datetime
 from ..schemas.user import UserCreate
-from ..security import get_password_hash
+from ..security import hashear_password
 
 class UserRepository:
     def __init__(self, conn):
@@ -51,7 +51,7 @@ class UserRepository:
 
     def create(self, user: UserCreate) -> dict:
         cursor = self.conn.cursor()
-        hashed_password = get_password_hash(user.password)
+        hashed_password = hashear_password(user.password)
         cursor.execute("""
             INSERT INTO users (username, email, hashed_password, full_name, role)
             VALUES (%s, %s, %s, %s, %s)

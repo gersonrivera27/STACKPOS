@@ -55,6 +55,9 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
 # ============================================
 # AUTH RESPONSE SCHEMAS
 # ============================================
@@ -76,6 +79,7 @@ class LoginResponse(BaseModel):
     exito: bool
     mensaje: str
     token: Optional[str] = None
+    refresh_token: Optional[str] = None
     usuario: Optional[UsuarioResponse] = None
 
 class Token(BaseModel):

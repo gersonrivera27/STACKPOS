@@ -1,4 +1,5 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from ..security import obtener_usuario_actual
 import shutil
 import os
 from uuid import uuid4
@@ -10,7 +11,7 @@ UPLOAD_DIR = "uploads"
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 @router.post("/images", response_model=dict)
-async def upload_image(file: UploadFile = File(...)):
+async def upload_image(file: UploadFile = File(...), usuario = Depends(obtener_usuario_actual)):
     """
     Subir una imagen. Retorna la URL relativa.
     """

@@ -52,6 +52,18 @@ public class LoginResponse
     [JsonPropertyName("token")]
     public string? Token { get; set; }
     
+    [JsonPropertyName("refresh_token")]
+    public string? RefreshToken { get; set; }
+    
     [JsonPropertyName("usuario")]
     public UsuarioDto? Usuario { get; set; }
+}
+
+/// <summary>
+/// Request body for refreshing the token
+/// </summary>
+public class RefreshTokenRequest
+{
+    [JsonPropertyName("refresh_token")]
+    public string RefreshToken { get; set; } = string.Empty;
 }

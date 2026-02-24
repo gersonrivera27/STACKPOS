@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, status
+from ..security import obtener_usuario_actual
 from typing import List, Optional
 from decimal import Decimal
 from datetime import datetime
@@ -10,7 +11,7 @@ from ..models.table import Table, TableCreate, ActiveOrderInfo
 router = APIRouter()
 
 @router.get("", response_model=List[Table])
-def get_tables(conn = Depends(get_db)):
+def get_tables(conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Obtener todas las mesas con información de ocupación"""
     cursor = conn.cursor()
     
@@ -65,7 +66,7 @@ def get_tables(conn = Depends(get_db)):
     return list(unique_tables)
 
 @router.post("", response_model=Table, status_code=status.HTTP_201_CREATED)
-def create_table(table: TableCreate, conn = Depends(get_db)):
+def create_table(table: TableCreate, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Crear una nueva mesa"""
     cursor = conn.cursor()
     try:
@@ -81,7 +82,7 @@ def create_table(table: TableCreate, conn = Depends(get_db)):
         raise HTTPException(status_code=400, detail="El número de mesa ya existe")
 
 @router.patch("/{table_id}/status")
-def update_table_status(table_id: int, is_occupied: bool, conn = Depends(get_db)):
+def update_table_status(table_id: int, is_occupied: bool, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Actualizar el estado de una mesa"""
     cursor = conn.cursor()
     cursor.execute(
@@ -97,7 +98,7 @@ def update_table_status(table_id: int, is_occupied: bool, conn = Depends(get_db)
     return Table(id=updated_table['id'], table_number=updated_table['table_number'], is_occupied=updated_table['is_occupied'])
 
 @router.patch("/{table_id}/position")
-def update_table_position(table_id: int, x: int, y: int, conn = Depends(get_db)):
+def update_table_position(table_id: int, x: int, y: int, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
     """Actualizar la posición de una mesa"""
     cursor = conn.cursor()
     cursor.execute(

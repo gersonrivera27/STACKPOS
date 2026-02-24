@@ -2,7 +2,7 @@
 Utilidades de seguridad (Hashing y JWT)
 Sistema completo de autenticación JWT
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -37,15 +37,10 @@ def verificar_password(password_plano: str, password_hash: str) -> bool:
 
 def crear_token(usuario: dict) -> str:
     """
-    Crear JWT token con payload completo
-    
-    Args:
-        usuario: Dict con datos del usuario (debe incluir: id, username, email, role)
-    
-    Returns:
-        JWT token string
+    Crear JWT access token (1 hora de vida)
     """
-    expiracion = datetime.utcnow() + timedelta(hours=settings.JWT_EXPIRATION_HOURS)
+    now = datetime.now(timezone.utc)
+    expiracion = now + timedelta(hours=1)  # Short-lived access token
     
     payload = {
         "sub": str(usuario['id']),
@@ -53,11 +48,53 @@ def crear_token(usuario: dict) -> str:
         "username": usuario['username'],
         "email": usuario['email'],
         "rol": usuario['role'],
+        "type": "access",
         "exp": expiracion,
-        "iat": datetime.utcnow()
+        "iat": now
     }
     
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+def crear_refresh_token(usuario: dict) -> str:
+    """
+    Crear JWT refresh token (7 dias de vida)
+    """
+    now = datetime.now(timezone.utc)
+    expiracion = now + timedelta(days=7)
+    
+    payload = {
+        "sub": str(usuario['id']),
+        "usuario_id": usuario['id'],
+        "type": "refresh",
+        "exp": expiracion,
+        "iat": now
+    }
+    
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+def decodificar_refresh_token(token: str) -> Dict[str, Any]:
+    """
+    Decodificar y validar refresh token.
+    Raises HTTPException if token is invalid, expired, or not a refresh token.
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM]
+        )
+        if payload.get("type") != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token invalido: no es un refresh token"
+            )
+        return payload
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token invalido o expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 def decodificar_token(token: str) -> Dict[str, Any]:
     """
@@ -210,23 +247,4 @@ def autenticar_usuario(conn, username_or_email: str, password: str) -> Optional[
     
     return usuario
 
-# Mantener retrocompatibilidad con funciones antiguas
-def verify_password(plain_password, hashed_password):
-    """Función legacy - usar verificar_password() en su lugar"""
-    return verificar_password(plain_password, hashed_password)
-
-def get_password_hash(password):
-    """Función legacy - usar hashear_password() en su lugar"""
-    return hashear_password(password)
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    """Función legacy - usar crear_token() en su lugar"""
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return encoded_jwt
+# Legacy functions removed - use crear_token/crear_refresh_token instead
