@@ -32,6 +32,9 @@ jobs:
       - name: 📦 Install dependencies
         run: pip install -r requirements.txt
 
+      - name: 📁 Create required directories
+        run: mkdir -p uploads
+
       - name: 🧪 Run tests
         env:
           ENV: test
