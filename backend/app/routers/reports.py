@@ -19,10 +19,10 @@ def get_daily_sales(report_date: Optional[date] = None, conn = Depends(get_db)):
     
     cursor.execute(
         """SELECT 
-            COUNT(*) as total_orders,
-            COALESCE(SUM(total), 0) as total_sales,
-            COALESCE(AVG(total), 0) as average_ticket,
-            COALESCE(SUM(tax), 0) as total_tax,
+            COUNT(CASE WHEN status <> 'cancelled' THEN 1 END) as total_orders,
+            COALESCE(SUM(CASE WHEN status <> 'cancelled' THEN total ELSE 0 END), 0) as total_sales,
+            COALESCE(AVG(CASE WHEN status <> 'cancelled' THEN total ELSE NULL END), 0) as average_ticket,
+            COALESCE(SUM(CASE WHEN status <> 'cancelled' THEN tax ELSE 0 END), 0) as total_tax,
             COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_orders,
             COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_orders
            FROM orders 
@@ -35,7 +35,7 @@ def get_daily_sales(report_date: Optional[date] = None, conn = Depends(get_db)):
     cursor.execute(
         """SELECT order_type, COUNT(*) as count, COALESCE(SUM(total), 0) as total
            FROM orders 
-           WHERE DATE(created_at) = %s AND status = 'completed'
+           WHERE DATE(created_at) = %s AND status <> 'cancelled'
            GROUP BY order_type""",
         (report_date,)
     )
@@ -69,7 +69,7 @@ def get_top_products(
         JOIN products p ON oi.product_id = p.id
         JOIN categories c ON p.category_id = c.id
         JOIN orders o ON oi.order_id = o.id
-        WHERE o.status = 'completed'
+        WHERE o.status <> 'cancelled'
     """
     params = []
     

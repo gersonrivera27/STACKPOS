@@ -1,5 +1,7 @@
 # StackPOS - Restaurant Point of Sale System
 
+[![CI](https://github.com/gersonrivera27/STACKPOS/actions/workflows/ci.yml/badge.svg)](https://github.com/gersonrivera27/STACKPOS/actions/workflows/ci.yml)
+
 **Version:** 3.0 | **Status:** Production Ready
 
 A modern, full-stack Point of Sale (POS) system designed for restaurants handling dine-in, takeaway, and delivery orders. Built with .NET 8.0 Blazor Server and Python FastAPI, featuring real-time kitchen displays, cash register management, Google Maps integration for Eircode address lookup, and comprehensive reporting.

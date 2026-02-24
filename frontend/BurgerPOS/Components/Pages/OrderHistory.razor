@@ -144,12 +144,27 @@
                                             <td class="col-desc">@item.ProductName</td>
                                             <td class="col-price">@item.Subtotal.ToString("F2")</td>
                                         </tr>
-                                        @if (!string.IsNullOrEmpty(item.SpecialInstructions))
+
+                                        @if (item.Modifiers.Any())
                                         {
-                                            <tr>
-                                                <td></td>
-                                                <td colspan="2" class="receipt-modifier">+ @item.SpecialInstructions</td>
-                                            </tr>
+                                            @foreach (var mod in item.Modifiers)
+                                            {
+                                                <tr>
+                                                    <td></td>
+                                                    <td colspan="2" class="receipt-modifier">+ @mod.ModifierName</td>
+                                                </tr>
+                                            }
+                                        }
+
+                                        @if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
+                                        {
+                                            @foreach (var noteLine in item.SpecialInstructions.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                                            {
+                                                <tr>
+                                                    <td></td>
+                                                    <td colspan="2" class="receipt-note">- @noteLine</td>
+                                                </tr>
+                                            }
                                         }
                                     }
                                 }

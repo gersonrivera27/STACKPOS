@@ -347,6 +347,13 @@
 .receipt-modifier {
     font-size: 0.79rem;
     font-style: italic;
+    color: #3f6a8f;
+    padding-left: 8px;
+}
+
+.receipt-note {
+    font-size: 0.79rem;
+    font-style: italic;
     color: #6b7783;
     padding-left: 8px;
 }

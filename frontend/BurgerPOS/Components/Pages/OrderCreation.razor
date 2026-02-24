@@ -24,7 +24,7 @@
         <div class="order-info-center">
             @if (OrderId.HasValue)
             {
-                <span class="order-title editing-badge">✏️ EDITANDO ORDEN #@OrderId</span>
+                <span class="order-title editing-badge">EDITANDO ORDEN #@OrderId</span>
             }
             else
             {
@@ -32,12 +32,12 @@
             }
             @if (customer != null)
             {
-                <span class="customer-name"> | 👤 @customer.Name</span>
+                <span class="customer-name">| @customer.Name</span>
             }
         </div>
 
         <button class="btn-close-order" @onclick="CancelOrder">
-            ✕ SALIR
+            <i class="bi bi-x-lg"></i> SALIR
         </button>
     </div>
 
@@ -128,16 +128,16 @@
             <!-- Item Action Buttons -->
             <div class="item-actions">
                 <button class="action-btn" @onclick="() => { if(selectedCartItem != null) IncreaseQuantity(selectedCartItem); }">
-                    ➕ AGREGAR
+                    <i class="bi bi-plus-lg"></i> AGREGAR
                 </button>
                 <button class="action-btn" @onclick="() => { if(selectedCartItem != null) DecreaseQuantity(selectedCartItem); }">
-                    ➖ QUITAR
+                    <i class="bi bi-dash-lg"></i> QUITAR
                 </button>
                 <button class="action-btn" @onclick="() => { if(selectedCartItem != null) OpenCommentModal(selectedCartItem); }">
-                     NOTA
+                    <i class="bi bi-chat-left-text"></i> NOTA
                 </button>
                 <button class="action-btn btn-delete" @onclick="() => { if(selectedCartItem != null) RemoveFromCart(selectedCartItem); }">
-                    🗑 BORRAR
+                    <i class="bi bi-trash"></i> BORRAR
                 </button>
             </div>
 
@@ -205,10 +205,10 @@
             <div class="final-actions">
                 <button class="btn-clear" @onclick="ClearCart">CANCELAR</button>
                 <button class="btn-kitchen" @onclick="SendToKitchen" disabled="@isSubmitting">
-                    @(OrderId.HasValue ? "🔄 ACTUALIZAR COCINA" : "COCINA")
+                    @(OrderId.HasValue ? "ACTUALIZAR COCINA" : "ENVIAR A COCINA")
                 </button>
                 <button class="btn-confirm" @onclick="ConfirmOrder" disabled="@isSubmitting">
-                    PAGAR
+                    CONFIRMAR Y PAGAR
                 </button>
             </div>
             
@@ -451,9 +451,9 @@
         
         return OrderTypeStr.ToLower() switch
         {
-            "delivery" => "🚚 Delivery",
-            "takeout" => "🥡 Para Llevar",
-            "dine_in" => "🍽️ Comer Aquí",
+            "delivery" => "Delivery",
+            "takeout" => "Para Llevar",
+            "dine_in" => "Comer Aqui",
             _ => OrderTypeStr
         };
     }
@@ -527,7 +527,7 @@
             }
 
             Logger.LogInformation("Orden enviada/actualizada: {OrderId}", targetOrderId);
-            successMessage = "🍳 Orden enviada a cocina";
+            successMessage = "Orden enviada a cocina";
             StateHasChanged();
 
             await PrintKitchenTicket(targetOrderId);
@@ -845,10 +845,73 @@
     {
         if (editingCartItem != null)
         {
-            editingCartItem.SpecialInstructions = tempComment.Trim();
-            editingCartItem.SelectedModifiers = new List<Modifier>(tempSelectedModifiers);
+            var normalizedNote = NormalizeInstructions(tempComment);
+            var newModifiers = new List<Modifier>(tempSelectedModifiers);
+
+            // Si la línea tiene más de 1 unidad y se está personalizando,
+            // dividir para que la personalización aplique solo a una unidad.
+            if (editingCartItem.Quantity > 1 && IsPersonalizationChanged(editingCartItem, normalizedNote, newModifiers))
+            {
+                editingCartItem.Quantity--;
+
+                var personalizedItem = new CartItem
+                {
+                    ProductId = editingCartItem.ProductId,
+                    ProductName = editingCartItem.ProductName,
+                    UnitPrice = editingCartItem.UnitPrice,
+                    Quantity = 1,
+                    SpecialInstructions = normalizedNote,
+                    SelectedModifiers = newModifiers
+                };
+
+                // Si ya existe una línea con la misma personalización, sumar ahí.
+                var existingMatch = cart.FirstOrDefault(i =>
+                    i != editingCartItem &&
+                    i.ProductId == personalizedItem.ProductId &&
+                    NormalizeInstructions(i.SpecialInstructions) == normalizedNote &&
+                    HaveSameModifiers(i.SelectedModifiers, personalizedItem.SelectedModifiers));
+
+                if (existingMatch != null)
+                {
+                    existingMatch.Quantity += personalizedItem.Quantity;
+                    selectedCartItem = existingMatch;
+                }
+                else
+                {
+                    cart.Add(personalizedItem);
+                    selectedCartItem = personalizedItem;
+                }
+            }
+            else
+            {
+                editingCartItem.SpecialInstructions = normalizedNote;
+                editingCartItem.SelectedModifiers = newModifiers;
+                selectedCartItem = editingCartItem;
+            }
         }
         CloseCommentModal();
+    }
+
+    private static string NormalizeInstructions(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        return value.Trim();
+    }
+
+    private static bool HaveSameModifiers(List<Modifier> a, List<Modifier> b)
+    {
+        var aIds = a.Select(m => m.Id).OrderBy(id => id);
+        var bIds = b.Select(m => m.Id).OrderBy(id => id);
+        return aIds.SequenceEqual(bIds);
+    }
+
+    private static bool IsPersonalizationChanged(CartItem item, string note, List<Modifier> modifiers)
+    {
+        var noteChanged = NormalizeInstructions(item.SpecialInstructions) != note;
+        var modifiersChanged = !HaveSameModifiers(item.SelectedModifiers, modifiers);
+        return noteChanged || modifiersChanged;
     }
 
     // ===== Helpers para edición de órdenes existentes =====

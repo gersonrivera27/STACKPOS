@@ -1,29 +1,22 @@
-/* StackPos - Order Creation Theme */
-/* Combines Retro Industrial Layout with Modern Tech Branding */
-
-/* 1. Layout General */
 .order-creation-container {
     height: 100vh;
     width: 100vw;
     display: flex;
     flex-direction: column;
-    background-color: var(--bg-app);
-    /* Use global app background */
+    background: linear-gradient(180deg, #eef3f8 0%, #e7edf4 100%);
     overflow: hidden;
-    font-family: 'Segoe UI', sans-serif;
+    font-family: "Segoe UI", sans-serif;
 }
 
-/* Header - Matches Home.razor */
 .order-header {
-    height: 60px;
-    background-color: var(--bg-header);
-    /* #2C3E50 */
-    color: var(--text-light);
+    height: 66px;
+    background: linear-gradient(135deg, #2b3f55 0%, #223649 100%);
+    color: #edf3f9;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 20px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    padding: 0 18px;
+    box-shadow: 0 10px 25px rgba(8, 21, 35, 0.22);
     z-index: 10;
 }
 
@@ -37,19 +30,19 @@
     width: 24px;
     height: 24px;
     background: linear-gradient(to bottom,
-            var(--primary-accent) 0%, var(--primary-accent) 20%,
+            #2ea8ff 0%, #2ea8ff 20%,
             transparent 20%, transparent 40%,
-            var(--primary-accent) 40%, var(--primary-accent) 60%,
+            #2ea8ff 40%, #2ea8ff 60%,
             transparent 60%, transparent 80%,
-            var(--primary-accent) 80%, var(--primary-accent) 100%);
+            #2ea8ff 80%, #2ea8ff 100%);
     border-radius: 2px;
     display: inline-block;
 }
 
 .brand-name {
-    font-size: 1.5rem;
+    font-size: 2rem;
     letter-spacing: 0.5px;
-    color: var(--text-light);
+    color: #edf3f9;
 }
 
 .brand-name strong {
@@ -60,208 +53,214 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 600;
+    white-space: nowrap;
 }
 
 .order-title {
-    color: var(--primary-accent);
-    /* Blue accent */
+    color: #5eb9ff;
 }
 
 .customer-name {
-    color: #bdc3c7;
+    color: #ced9e4;
 }
 
 .btn-close-order {
-    background-color: var(--danger);
-    color: white;
+    background-color: #ea5a47;
+    color: #fff;
     border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-weight: 600;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-weight: 700;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: transform 0.2s ease, background 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .btn-close-order:hover {
-    background-color: #c0392b;
+    background-color: #d64a38;
+    transform: translateY(-1px);
 }
 
-/* 2. Main Grid (65% Menu - 35% Ticket) */
 .order-content {
     display: grid;
-    grid-template-columns: 65% 35%;
-    height: calc(100vh - 60px);
-    /* Subtract header height */
+    grid-template-columns: minmax(0, 68%) minmax(360px, 32%);
+    gap: 12px;
+    padding: 12px;
+    height: calc(100vh - 66px);
     overflow: hidden;
 }
 
-/* 3. Left Panel: Menu */
 .products-section {
-    background-color: #ecf0f1;
-    /* Light gray background */
+    background-color: #f3f7fc;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border-color);
+    border: 1px solid #d7e1ec;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 12px 30px rgba(23, 42, 60, 0.08);
 }
 
-/* Categories */
 .category-tabs {
     display: flex;
-    flex-wrap: wrap;
-    gap: 1px;
-    padding: 0;
-    background-color: var(--bg-header);
-    /* Dark background for tabs container */
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: 10px;
+    background-color: #e6eef7;
+    border-bottom: 1px solid #d1dce9;
+    overflow-x: auto;
 }
 
 .category-tab {
-    flex: 1;
-    min-width: 100px;
-    padding: 12px 5px;
-    background-color: #34495e;
-    /* Slightly lighter than header */
-    color: var(--text-light);
-    border: none;
-    border-right: 1px solid #2c3e50;
-    border-bottom: 1px solid #2c3e50;
+    flex: 0 0 auto;
+    min-width: 130px;
+    padding: 10px 14px;
+    background-color: #30465f;
+    color: #e8f0f8;
+    border: 1px solid #2a3e54;
     font-weight: 600;
     text-transform: uppercase;
     cursor: pointer;
-    font-size: 0.85rem;
-    border-radius: 0;
-    transition: background 0.2s;
+    font-size: 0.8rem;
+    border-radius: 10px;
+    transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .category-tab:hover {
-    background-color: #3d566e;
+    background-color: #36516f;
+    transform: translateY(-1px);
 }
 
 .category-tab.active {
-    background-color: var(--primary-accent);
-    /* Blue active state */
-    color: white;
+    background: linear-gradient(135deg, #2ea8ff 0%, #1d8ee2 100%);
+    color: #fff;
+    border-color: #1d8ee2;
+    box-shadow: 0 8px 18px rgba(30, 123, 191, 0.35);
 }
 
-/* Products Grid */
 .products-grid {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    grid-auto-rows: 100px;
-    gap: 2px;
-    /* Small gap */
-    padding: 2px;
-    background-color: #bdc3c7;
-    /* Gap color */
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    grid-auto-rows: 116px;
+    gap: 10px;
+    padding: 12px;
+    background: radial-gradient(circle at top left, #f6f9fd 0%, #edf3fa 55%, #e8eef5 100%);
     overflow-y: auto;
     align-content: start;
 }
 
 .product-button {
-    background-color: white;
-    /* White buttons for clean look */
-    border: none;
-    color: var(--text-main);
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    border: 1px solid #d7e2ee;
+    color: #22374c;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 10px;
+    padding: 12px;
     cursor: pointer;
-    position: relative;
-    border-radius: 0;
-    transition: background-color 0.1s;
+    border-radius: 12px;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    box-shadow: 0 8px 20px rgba(32, 58, 84, 0.08);
 }
 
 .product-button:hover {
-    background-color: #f7f9fa;
+    transform: translateY(-2px);
+    border-color: #9ec9eb;
+    box-shadow: 0 14px 24px rgba(32, 58, 84, 0.14);
 }
 
 .product-button:active {
-    background-color: #e0e0e0;
+    transform: translateY(0);
+    box-shadow: 0 5px 12px rgba(32, 58, 84, 0.12);
 }
 
 .product-name {
-    font-size: 0.95rem;
+    font-size: 1rem;
     font-weight: 600;
     line-height: 1.2;
     text-align: left;
-    color: var(--text-main);
+    color: #243a50;
 }
 
 .product-price {
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     font-weight: 700;
-    color: var(--primary-accent);
-    /* Blue price */
+    color: #1e94ea;
     text-align: right;
 }
 
-/* 4. Right Panel: Ticket */
 .order-display-section {
     display: flex;
     flex-direction: column;
-    background-color: white;
-    border-left: 1px solid var(--border-color);
+    background-color: #ffffff;
+    border: 1px solid #d6e0eb;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 12px 30px rgba(23, 42, 60, 0.12);
 }
 
 .order-header-info {
-    background-color: var(--primary-accent);
-    /* Blue header */
+    background: linear-gradient(135deg, #2ea8ff 0%, #1988dd 100%);
     color: white;
-    padding: 10px 15px;
+    padding: 12px 16px;
     font-weight: 700;
     text-transform: uppercase;
     display: flex;
     justify-content: space-between;
-    font-size: 1.1rem;
+    font-size: 1.12rem;
+    letter-spacing: 0.4px;
 }
 
-/* Ticket List - Paper Effect */
 .order-table-container {
     flex: 1;
     overflow-y: auto;
-    background-color: #fff9e6;
-    /* Keep paper color for contrast */
-    /* Paper lines gradient */
+    background-color: #fffdf5;
     background-image: repeating-linear-gradient(0deg,
             rgba(0, 0, 0, 0.03) 0px,
             rgba(0, 0, 0, 0.03) 1px,
             transparent 1px,
             transparent 30px);
     background-size: 100% 30px;
-    padding: 0;
+    padding: 0 0 8px;
 }
 
 .order-table {
     width: 100%;
     border-collapse: collapse;
-    font-family: 'Courier New', Courier, monospace;
+    font-family: "Courier New", Courier, monospace;
     font-size: 1rem;
 }
 
 .order-table thead {
-    background-color: #000;
-    color: white;
+    background-color: #152538;
+    color: #fff;
 }
 
 .order-table th {
-    padding: 8px;
+    padding: 9px 8px;
     text-align: left;
     font-weight: bold;
     text-transform: uppercase;
-    font-size: 0.9rem;
+    font-size: 0.86rem;
+    letter-spacing: 0.3px;
 }
 
 .order-row {
-    border-bottom: 1px dashed #ccc;
+    border-bottom: 1px dashed #cfd8e2;
     cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.order-row:hover {
+    background-color: rgba(30, 148, 234, 0.08);
 }
 
 .order-row.selected {
-    background-color: var(--primary-accent);
-    /* Blue selection */
+    background-color: #1e94ea;
     color: white;
 }
 
@@ -270,7 +269,7 @@
 }
 
 .order-table td {
-    padding: 5px 8px;
+    padding: 6px 8px;
     vertical-align: top;
 }
 
@@ -285,7 +284,7 @@
 }
 
 .col-cost {
-    width: 80px;
+    width: 92px;
     text-align: right;
     font-weight: bold;
 }
@@ -293,118 +292,130 @@
 .product-modifiers {
     font-size: 0.8rem;
     margin-left: 10px;
+    color: #546579;
 }
 
-/* Item Actions (Middle Bar) */
 .item-actions {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 1px;
-    background-color: #bdc3c7;
-    padding: 1px;
+    gap: 6px;
+    background-color: #f3f6fa;
+    padding: 8px;
+    border-top: 1px solid #d9e3ee;
 }
 
 .action-btn {
-    background-color: #ecf0f1;
-    border: none;
-    padding: 12px;
+    background-color: #fff;
+    border: 1px solid #d6e0ea;
+    padding: 10px 8px;
     cursor: pointer;
     font-weight: 700;
     text-transform: uppercase;
-    font-size: 0.8rem;
-    display: flex;
-    flex-direction: column;
+    font-size: 0.77rem;
+    display: inline-flex;
     align-items: center;
-    border-radius: 0;
-    color: var(--text-main);
+    justify-content: center;
+    border-radius: 10px;
+    color: #2a4057;
+    gap: 6px;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .action-btn:hover {
-    background-color: #dfe6e9;
+    transform: translateY(-1px);
+    border-color: #8dbde6;
+    box-shadow: 0 8px 16px rgba(24, 62, 97, 0.14);
 }
 
 .btn-delete {
-    color: var(--danger);
+    color: #d74233;
+    border-color: #f1ccc8;
 }
 
-/* Totals Section */
 .order-summary-box {
     background-color: #fff;
-    padding: 10px 15px;
-    border-top: 2px solid var(--text-main);
-    font-family: 'Courier New', Courier, monospace;
+    padding: 12px 14px;
+    border-top: 1px solid #d9e3ee;
+    font-family: "Courier New", Courier, monospace;
 }
 
 .summary-line {
     display: flex;
     justify-content: space-between;
-    font-size: 1rem;
-    margin-bottom: 5px;
+    font-size: 1.02rem;
+    margin-bottom: 7px;
+    color: #2f4256;
 }
 
 .total-line {
-    font-size: 2rem;
+    font-size: 1.65rem;
     font-weight: 900;
-    color: var(--text-main);
-    margin-top: 10px;
+    color: #1e2f42;
+    margin-top: 8px;
     padding-top: 10px;
-    border-top: 2px dashed var(--text-main);
+    border-top: 2px dashed #9fb4c8;
 }
 
-/* Footer Actions */
 .final-actions {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: 2px;
-    padding: 2px;
-    background-color: #bdc3c7;
-    height: 80px;
+    gap: 8px;
+    padding: 8px;
+    background-color: #f3f6fa;
+    border-top: 1px solid #d9e3ee;
+    height: 76px;
 }
 
 .btn-clear {
-    background-color: #95a5a6;
+    background-color: #8e9aa7;
     color: white;
     border: none;
     font-weight: 700;
     text-transform: uppercase;
     cursor: pointer;
+    border-radius: 10px;
+    transition: filter 0.2s ease, transform 0.2s ease;
 }
 
 .btn-kitchen {
-    background-color: var(--success);
-    /* Green */
+    background: linear-gradient(135deg, #2fb66b 0%, #21995a 100%);
     color: white;
     border: none;
-    font-size: 1.2rem;
+    font-size: 1rem;
     font-weight: 800;
     text-transform: uppercase;
     cursor: pointer;
+    border-radius: 10px;
+    transition: filter 0.2s ease, transform 0.2s ease;
 }
 
 .btn-confirm {
-    background-color: var(--primary-accent);
-    /* Blue */
+    background: linear-gradient(135deg, #2ea8ff 0%, #1d8ee2 100%);
     color: white;
     border: none;
-    font-size: 1.2rem;
+    font-size: 1rem;
     font-weight: 800;
     text-transform: uppercase;
     cursor: pointer;
+    border-radius: 10px;
+    transition: filter 0.2s ease, transform 0.2s ease;
 }
 
 .btn-kitchen:hover {
-    filter: brightness(0.9);
+    filter: brightness(0.94);
+    transform: translateY(-1px);
 }
 
 .btn-confirm:hover {
-    filter: brightness(0.9);
+    filter: brightness(0.94);
+    transform: translateY(-1px);
 }
 
 .btn-clear:hover {
-    background-color: #7f8c8d;
+    filter: brightness(0.93);
+    transform: translateY(-1px);
 }
 
-/* Modals - FIXED STRUCTURE */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -416,14 +427,12 @@
     align-items: center;
     justify-content: center;
     z-index: 2000;
-    /* High z-index to sit on top */
     backdrop-filter: blur(2px);
 }
 
 .modal-content {
     background-color: white;
-    border-radius: 8px;
-    /* Slightly rounded for modern look */
+    border-radius: 10px;
     width: 90%;
     max-width: 500px;
     display: flex;
@@ -434,7 +443,7 @@
 }
 
 .modal-header {
-    background-color: var(--bg-header);
+    background-color: #2b3f55;
     color: white;
     padding: 15px;
     display: flex;
@@ -471,9 +480,9 @@
 
 .quick-mod-btn {
     padding: 10px;
-    border: 1px solid var(--border-color);
+    border: 1px solid #d2dbe4;
     background-color: #f8f9fa;
-    color: var(--text-main);
+    color: #26394d;
     border-radius: 4px;
     cursor: pointer;
     font-weight: 600;
@@ -481,15 +490,15 @@
 }
 
 .quick-mod-btn:hover {
-    background-color: var(--primary-accent);
+    background-color: #2ea8ff;
     color: white;
-    border-color: var(--primary-accent);
+    border-color: #2ea8ff;
 }
 
 .comment-textarea {
     width: 100%;
     padding: 10px;
-    border: 1px solid var(--border-color);
+    border: 1px solid #d3dde8;
     border-radius: 4px;
     font-family: inherit;
     resize: vertical;
@@ -498,7 +507,7 @@
 
 .modal-footer {
     padding: 15px;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid #d3dde8;
     display: flex;
     justify-content: flex-end;
     gap: 10px;
@@ -516,11 +525,35 @@
 }
 
 .btn-modal-save {
-    background-color: var(--success);
+    background-color: #2fb66b;
     color: white;
     border: none;
     padding: 10px 20px;
     border-radius: 4px;
     cursor: pointer;
     font-weight: 600;
+}
+
+@media (max-width: 1300px) {
+    .order-content {
+        grid-template-columns: minmax(0, 62%) minmax(340px, 38%);
+    }
+
+    .product-button {
+        padding: 10px;
+    }
+}
+
+@media (max-width: 1024px) {
+    .order-content {
+        grid-template-columns: 1fr;
+    }
+
+    .order-display-section {
+        min-height: 48vh;
+    }
+
+    .brand-name {
+        font-size: 1.6rem;
+    }
 }
