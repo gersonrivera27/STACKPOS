@@ -69,7 +69,8 @@ CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number);
 -- -----------------------------------------------------------
 ALTER TABLE order_items
     ADD COLUMN IF NOT EXISTS unit_price           DECIMAL(10, 2) DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS special_instructions TEXT;
+    ADD COLUMN IF NOT EXISTS special_instructions TEXT,
+    ADD COLUMN IF NOT EXISTS created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
 -- -----------------------------------------------------------
 -- 4c. order_item_modifiers: create table if not exists
