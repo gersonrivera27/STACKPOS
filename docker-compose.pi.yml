@@ -166,9 +166,9 @@ services:
     image: postgres:15
     container_name: burger-backup
     volumes:
-      - ./scripts/backup.sh:/backup.sh:ro
+      - ./scripts/backup.sh:/backup.sh
       - db-backups:/backups
-    entrypoint: [ "/bin/bash", "-c", "chmod +x /backup.sh && while true; do /backup.sh; sleep 86400; done" ]
+    entrypoint: [ "/bin/bash", "-c", "while true; do bash /backup.sh; sleep 86400; done" ]
     depends_on:
       db:
         condition: service_healthy
