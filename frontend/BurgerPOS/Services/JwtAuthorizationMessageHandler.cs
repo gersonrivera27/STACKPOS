@@ -53,6 +53,7 @@ public class JwtAuthorizationMessageHandler : DelegatingHandler
                 {
                     // Crear un nuevo HttpClient para la petición de refresh, sin la autorización
                     // Utilizar la misma base address de la request original
+                    if (request.RequestUri == null) return response;
                     var baseAddress = new Uri(request.RequestUri.GetLeftPart(UriPartial.Authority));
                     using var refreshClient = new HttpClient { BaseAddress = baseAddress };
                     
@@ -124,7 +125,7 @@ public class JwtAuthorizationMessageHandler : DelegatingHandler
         
         foreach (var prop in req.Options)
         {
-            clone.Options.Set(new HttpRequestOptionsKey<object>(prop.Key), prop.Value);
+            clone.Options.Set(new HttpRequestOptionsKey<object?>(prop.Key), prop.Value);
         }
         
         return clone;

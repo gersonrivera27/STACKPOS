@@ -20,7 +20,7 @@ Authenticate user and get JWT token.
 ```json
 {
   "username": "admin",
-  "password": "admin123"
+  "password": "tu_password_seguro"
 }
 ```
 

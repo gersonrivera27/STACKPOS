@@ -235,8 +235,7 @@
     private bool isSearching = false;
     private bool showCreateForm = false;
     private bool isSaving = false;
-    private string errorMessage = "";
- 
+
     private bool _wasOpen = false;
     private bool isInitialRender = true;
     private System.Threading.Timer? searchTimer;
@@ -246,11 +245,8 @@
     private string newName = "";
     private string newAddress = "";
     private string newCity = "Drogheda";
-    private string newEmail = "";
     private string newEircode = "";
-    private string newAddressLine2 = "";
     private string newCounty = "Louth";
-    private string newNotes = "";
     private double? newLatitude = null;
     private double? newLongitude = null;
     private bool isSearchingNewAddress = false;
@@ -275,7 +271,6 @@
         orderType = "";
         showSuggestions = false;
         showCreateForm = false;
-        errorMessage = "";
         newPhone = "";
         newName = "";
         newAddress = "";
@@ -290,27 +285,29 @@
         }
     }
 
-    private async Task OnSearchQueryChanged(ChangeEventArgs e)
+    private Task OnSearchQueryChanged(ChangeEventArgs e)
     {
         searchQuery = e.Value?.ToString() ?? "";
         searchTimer?.Dispose();
-        
+
         if (string.IsNullOrWhiteSpace(searchQuery) || searchQuery.Length < 2)
         {
             suggestions.Clear();
             showSuggestions = false;
             StateHasChanged();
-            return;
+            return Task.CompletedTask;
         }
-        
+
         isSearching = true;
         showSuggestions = true;
         StateHasChanged();
-        
+
         searchTimer = new System.Threading.Timer(async _ =>
         {
             await SearchCustomers(searchQuery);
         }, null, 300, Timeout.Infinite);
+
+        return Task.CompletedTask;
     }
 
     private async Task SearchCustomers(string query)
@@ -378,7 +375,7 @@
         if (!IsNewCustomerValid()) return;
 
         isSaving = true;
-        errorMessage = "";
+        createErrorMessage = "";
         StateHasChanged();
 
         try
@@ -495,12 +492,13 @@
         Navigation.NavigateTo($"/order/{selectedCustomer.Id}/{orderType}/{PhoneLine}");
     }
 
-    private void HandleBackdropClick()
+    private Task HandleBackdropClick()
     {
         if (!isInitialRender)
         {
-            Cancel();
+            return Cancel();
         }
+        return Task.CompletedTask;
     }
 
     private async Task Cancel()

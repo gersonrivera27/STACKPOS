@@ -98,8 +98,8 @@ docker-compose -f docker-compose.prod.yml ps
 ## Paso 5: Verificar
 
 1. Acceder a `https://tudominio.com`
-2. Login con: `admin` / `BurgerAdmin2025!`
-3. Cambiar la contraseña del admin
+2. Login con el usuario `admin` y la contraseña que generaste en el paso de creación del admin
+3. Cambiar la contraseña del admin desde el panel de administración
 
 ---
 

@@ -6,6 +6,8 @@ from ..security import obtener_usuario_actual, verificar_rol
 from typing import List, Optional
 
 from ..database import get_db
+import logging
+logger = logging.getLogger(__name__)
 from ..schemas.product import Product, ProductCreate, ProductUpdate, ProductWithCategory
 from ..repositories.product_repository import ProductRepository
 
@@ -49,7 +51,8 @@ def create_product(product: ProductCreate, conn = Depends(get_db), usuario = Dep
     
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error interno: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Error procesando la solicitud")
 
 @router.put("/{product_id}", response_model=Product)
 def update_product(product_id: int, product: ProductUpdate, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):
@@ -78,7 +81,8 @@ def update_product(product_id: int, product: ProductUpdate, conn = Depends(get_d
         raise
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error interno: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Error procesando la solicitud")
 
 @router.delete("/{product_id}")
 def delete_product(product_id: int, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):

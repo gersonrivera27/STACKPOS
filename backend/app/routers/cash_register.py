@@ -2,12 +2,14 @@
 Router para sistema de caja y pagos
 """
 from fastapi import APIRouter, HTTPException, Depends, status
-from ..security import obtener_usuario_actual
+from ..security import obtener_usuario_actual, verificar_rol
 from typing import List, Optional
 from decimal import Decimal
 from datetime import datetime
 
 from ..database import get_db
+import logging
+logger = logging.getLogger(__name__)
 from ..models.cash_register import (
     CashSessionCreate, CashSessionClose, CashSession, CashSessionSummary,
     PaymentCreate, PaymentResponse, CashSessionStatus
@@ -21,8 +23,8 @@ router = APIRouter()
 # ============================================
 
 @router.post("/sessions", response_model=CashSession, status_code=status.HTTP_201_CREATED)
-def open_cash_session(session_data: CashSessionCreate, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
-    """Abrir una nueva sesión de caja"""
+def open_cash_session(session_data: CashSessionCreate, conn = Depends(get_db), usuario = Depends(verificar_rol("admin", "manager"))):
+    """Abrir una nueva sesión de caja. Requiere rol admin o manager."""
     cursor = conn.cursor()
     
     try:
@@ -58,7 +60,8 @@ def open_cash_session(session_data: CashSessionCreate, conn = Depends(get_db), u
         raise
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error interno: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Error procesando la solicitud")
 
 
 @router.get("/sessions/active", response_model=Optional[CashSession])
@@ -109,22 +112,29 @@ def get_session(session_id: int, conn = Depends(get_db), usuario = Depends(obten
 
 
 @router.get("/sessions/{session_id}/summary", response_model=CashSessionSummary)
-def get_session_summary(session_id: int, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
-    """Obtener resumen de sesión para cierre"""
+def get_session_summary(session_id: int, conn = Depends(get_db), usuario = Depends(verificar_rol("admin", "manager"))):
+    """Obtener resumen financiero de sesión. Requiere rol admin o manager."""
     cursor = conn.cursor()
-    
+
     # Obtener sesión
     cursor.execute("""
         SELECT id, opening_amount, total_cash_sales, total_card_sales,
-               COALESCE(total_tips, 0) as total_tips, orders_count
+               COALESCE(total_tips, 0) as total_tips, orders_count, user_id
         FROM cash_sessions
         WHERE id = %s
     """, (session_id,))
-    
+
     session = cursor.fetchone()
-    
+
     if not session:
         raise HTTPException(status_code=404, detail="Sesión no encontrada")
+
+    # Solo el dueño de la sesión o admin puede ver el resumen financiero
+    if usuario.get('role') != 'admin' and session['user_id'] != usuario.get('id'):
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permiso para ver el resumen de esta sesión"
+        )
     
     # Obtener pagos de esta sesión
     cursor.execute("""
@@ -158,28 +168,36 @@ def get_session_summary(session_id: int, conn = Depends(get_db), usuario = Depen
 
 @router.post("/sessions/{session_id}/close", response_model=CashSession)
 def close_cash_session(
-    session_id: int, 
-    close_data: CashSessionClose, 
+    session_id: int,
+    close_data: CashSessionClose,
     conn = Depends(get_db),
-    usuario = Depends(obtener_usuario_actual)
+    usuario = Depends(verificar_rol("admin", "manager"))
 ):
-    """Cerrar sesión de caja"""
+    """Cerrar sesión de caja. Requiere rol admin o manager."""
     cursor = conn.cursor()
-    
+
     try:
         # Obtener sesión actual
         cursor.execute("""
-            SELECT opening_amount, total_cash_sales, COALESCE(total_tips, 0) as total_tips
+            SELECT opening_amount, total_cash_sales, COALESCE(total_tips, 0) as total_tips,
+                   user_id
             FROM cash_sessions
             WHERE id = %s AND status = 'open'
         """, (session_id,))
-        
+
         session = cursor.fetchone()
-        
+
         if not session:
             raise HTTPException(
-                status_code=404, 
+                status_code=404,
                 detail="Sesión no encontrada o ya está cerrada"
+            )
+
+        # Solo el propio usuario o un admin puede cerrar la sesión
+        if usuario.get('role') != 'admin' and session['user_id'] != usuario.get('id'):
+            raise HTTPException(
+                status_code=403,
+                detail="Solo puedes cerrar tu propia sesión de caja"
             )
         
         # Calcular monto esperado y diferencia
@@ -215,7 +233,8 @@ def close_cash_session(
         raise
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error interno: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Error procesando la solicitud")
 
 
 # ============================================
@@ -299,7 +318,8 @@ def create_payment(payment_data: PaymentCreate, conn = Depends(get_db), usuario 
         raise
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error interno: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Error procesando la solicitud")
 
 
 @router.get("/payments/order/{order_id}", response_model=Optional[PaymentResponse])
@@ -325,9 +345,9 @@ def get_sessions(
     status: Optional[str] = None,
     limit: int = 20,
     conn = Depends(get_db),
-    usuario = Depends(obtener_usuario_actual)
+    usuario = Depends(verificar_rol("admin", "manager"))
 ):
-    """Listar sesiones de caja"""
+    """Listar todas las sesiones de caja. Requiere rol admin o manager."""
     cursor = conn.cursor()
     
     query = """

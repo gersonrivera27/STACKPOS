@@ -3,14 +3,14 @@ Aplicación principal FastAPI
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 import logging
 from contextlib import asynccontextmanager
 
 from .config import settings
 from fastapi.staticfiles import StaticFiles
-from .routers import categories, products, orders, modifiers, tables, reports, customers, auth, cash_register, uploads, websocket_router, audit, config, geocoding
+from .routers import categories, products, orders, modifiers, tables, reports, customers, auth, cash_register, uploads, websocket_router, audit, geocoding
 from .middleware.audit_middleware import AuditMiddleware
 from .core.rabbitmq import mq
 
@@ -70,8 +70,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 # Agregar Audit Middleware (después de CORS)
@@ -86,7 +86,6 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Registrar routers
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(config.router, tags=["Configuration"])
 app.include_router(geocoding.router, tags=["Geocoding"])
 app.include_router(categories.router, prefix="/api/categories", tags=["Categories"])
 app.include_router(products.router, prefix="/api/products", tags=["Products"])
@@ -103,7 +102,10 @@ app.include_router(audit.router, prefix="/api/audit", tags=["Audit Logs"])
 # Endpoints principales
 @app.get("/")
 def read_root():
-    """Endpoint raíz con información de la API"""
+    """Endpoint raíz"""
+    # En producción no exponemos el mapa de rutas
+    if settings.ENV == "production":
+        return {"status": "ok"}
     return {
         "message": "Burger POS API",
         "status": "running",
@@ -126,7 +128,7 @@ def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "timestamp": datetime.now()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 if __name__ == "__main__":

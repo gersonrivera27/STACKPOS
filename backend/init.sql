@@ -271,15 +271,43 @@ CREATE TABLE IF NOT EXISTS users (
     role VARCHAR(20) DEFAULT 'staff',
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_login TIMESTAMP
+    last_login TIMESTAMP,
+    -- PIN hasheado con bcrypt para login rápido en pantalla de selección de staff
+    pin VARCHAR(200)
 );
 
 -- Índices para usuarios
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 
--- Usuario Admin por defecto (password: BurgerAdmin2025!)
--- IMPORTANTE: Cambiar esta contraseña después del primer login
-INSERT INTO users (username, email, hashed_password, full_name, role)
-VALUES ('admin', 'admin@burgerpos.com', '$2b$12$jUipsQQGhPKJ1TBl4fF/DuBwSwDdw1yRkE7SxyVjIscSh2Ie/JuXi', 'System Admin', 'admin')
-ON CONFLICT (username) DO NOTHING;
+-- ============================================
+-- NOTA DE SEGURIDAD: No se inserta usuario admin aquí.
+-- Crear el primer admin manualmente después del deploy con:
+--
+--   1. Generar hash:
+--      docker compose exec backend python -c \
+--        "from app.security import hashear_password; print(hashear_password('TU_PASSWORD_SEGURO'))"
+--
+--   2. Insertar en la base de datos:
+--      INSERT INTO users (username, email, hashed_password, full_name, role)
+--      VALUES ('admin', 'admin@burgerpos.com', '<HASH_GENERADO>', 'System Admin', 'admin');
+-- ============================================
+
+-- ============================================
+-- Tabla de Refresh Tokens (revocación en logout)
+-- ============================================
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    -- SHA-256 hex del token JWT (no almacenamos el token completo)
+    token_hash VARCHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    revoked_at TIMESTAMP  -- NULL = activo, NOT NULL = revocado/logout
+);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user    ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash    ON refresh_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON refresh_tokens(expires_at);
+
+COMMENT ON TABLE refresh_tokens IS 'Registro de refresh tokens emitidos. Permite revocación inmediata en logout.';
 

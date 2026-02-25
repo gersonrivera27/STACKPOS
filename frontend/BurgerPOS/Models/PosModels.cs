@@ -538,13 +538,6 @@ public class CashSession
     public string? Notes { get; set; }
 }
 
-// ==================== CONFIGURATION ====================
-public class PublicConfigResponse
-{
-    [JsonPropertyName("google_maps_api_key")]
-    public string GoogleMapsApiKey { get; set; } = "";
-}
-
 // ==================== GEOCODING ====================
 public class GeocodeResponse
 {

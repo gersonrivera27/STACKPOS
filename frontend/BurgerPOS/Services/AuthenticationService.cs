@@ -72,11 +72,28 @@ public class AuthenticationService
     }
 
     /// <summary>
-    /// Cerrar sesión
+    /// Cerrar sesión: revoca el refresh token en el servidor y limpia el estado local.
     /// </summary>
     public async Task Logout()
     {
         _logger.LogInformation("Cerrando sesión");
+
+        // Revocar el refresh token en el backend antes de limpiar el estado local
+        try
+        {
+            var refreshToken = await _authStateProvider.GetRefreshToken();
+            if (!string.IsNullOrEmpty(refreshToken))
+            {
+                var request = new LogoutRequest { RefreshToken = refreshToken };
+                await _httpClient.PostAsJsonAsync("/api/auth/logout", request);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Si falla la llamada al servidor, continuamos con el logout local igualmente
+            _logger.LogWarning(ex, "No se pudo revocar el refresh token en el servidor");
+        }
+
         await _authStateProvider.MarkUserAsLoggedOut();
     }
 
@@ -92,7 +109,8 @@ public class AuthenticationService
     {
         try
         {
-            return await _httpClient.GetFromJsonAsync<List<User>>("/api/auth/users-list") ?? new List<User>();
+            // /users-public devuelve solo id + full_name, sin necesidad de token
+            return await _httpClient.GetFromJsonAsync<List<User>>("/api/auth/users-public") ?? new List<User>();
         }
         catch
         {

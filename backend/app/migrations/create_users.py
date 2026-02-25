@@ -1,26 +1,43 @@
 """
-Script de migración para crear tabla de usuarios
+Script de migración para crear tabla de usuarios y usuario administrador inicial.
+
+Uso:
+    python create_users.py <contraseña_admin>
+
+Ejemplo:
+    python create_users.py MiContraseñaSegura2024!
+
+Requiere la variable de entorno DATABASE_URL configurada.
 """
 import sys
 import os
 import psycopg2
 
-def create_users_table():
+def create_users_table(admin_password: str):
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        print("Error: la variable de entorno DATABASE_URL no está definida.")
+        sys.exit(1)
+
+    # Importar aquí para no requerir passlib en entornos sin dependencias instaladas
+    try:
+        from passlib.context import CryptContext
+    except ImportError:
+        print("Error: passlib no está instalado. Ejecuta: pip install passlib[bcrypt]")
+        sys.exit(1)
+
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    hashed_password = pwd_context.hash(admin_password[:72])
+
     try:
         print("Conectando a la base de datos...")
-        conn = psycopg2.connect(
-            user="postgres",
-            password="postgres",
-            host="burger-db",
-            port=5432,
-            database="burger_pos"
-        )
+        conn = psycopg2.connect(database_url)
         cursor = conn.cursor()
-        
+
         print("Recreando tabla users...")
         # DROP TABLE para asegurar esquema limpio
         cursor.execute("DROP TABLE IF EXISTS users CASCADE")
-        
+
         cursor.execute("""
             CREATE TABLE users (
                 id SERIAL PRIMARY KEY,
@@ -34,26 +51,34 @@ def create_users_table():
                 last_login TIMESTAMP
             )
         """)
-        
+
         # Crear índice
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
-        
-        print("Creando usuario admin por defecto...")
-        # Hash generado con bcrypt 4.0.1 para 'admin123'
-        hashed_password = "$2b$12$z/hT5aSEx5GEajsvaEEj3uiaD6TDSqbctokrrSZX7Q7d7E2Z209Pu"
+
+        print("Creando usuario admin...")
         cursor.execute("""
             INSERT INTO users (username, email, hashed_password, full_name, role)
             VALUES (%s, %s, %s, %s, %s)
         """, ('admin', 'admin@burgerpos.com', hashed_password, 'System Admin', 'admin'))
-        
+
         conn.commit()
         cursor.close()
         conn.close()
         print("Migración completada exitosamente.")
-        
+
     except Exception as e:
         print(f"Error en migración: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    create_users_table()
+    if len(sys.argv) != 2:
+        print("Uso: python create_users.py <contraseña_admin>")
+        print("Ejemplo: python create_users.py MiContraseñaSegura2024!")
+        sys.exit(1)
+
+    password_arg = sys.argv[1]
+    if len(password_arg) < 8:
+        print("Error: la contraseña debe tener al menos 8 caracteres.")
+        sys.exit(1)
+
+    create_users_table(password_arg)

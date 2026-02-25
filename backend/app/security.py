@@ -37,10 +37,10 @@ def verificar_password(password_plano: str, password_hash: str) -> bool:
 
 def crear_token(usuario: dict) -> str:
     """
-    Crear JWT access token (1 hora de vida)
+    Crear JWT access token. Duración configurable via ACCESS_TOKEN_EXPIRE_MINUTES (default 60 min).
     """
     now = datetime.now(timezone.utc)
-    expiracion = now + timedelta(hours=1)  # Short-lived access token
+    expiracion = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
     payload = {
         "sub": str(usuario['id']),
@@ -57,10 +57,10 @@ def crear_token(usuario: dict) -> str:
 
 def crear_refresh_token(usuario: dict) -> str:
     """
-    Crear JWT refresh token (7 dias de vida)
+    Crear JWT refresh token. Duración configurable via REFRESH_TOKEN_EXPIRE_DAYS (default 7 días).
     """
     now = datetime.now(timezone.utc)
-    expiracion = now + timedelta(days=7)
+    expiracion = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     
     payload = {
         "sub": str(usuario['id']),
@@ -111,10 +111,17 @@ def decodificar_token(token: str) -> Dict[str, Any]:
     """
     try:
         payload = jwt.decode(
-            token, 
-            settings.JWT_SECRET_KEY, 
+            token,
+            settings.JWT_SECRET_KEY,
             algorithms=[settings.JWT_ALGORITHM]
         )
+        # Rechazar refresh tokens usados como access tokens
+        if payload.get("type") == "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token inválido: se requiere access token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         return payload
     except JWTError as e:
         raise HTTPException(
@@ -247,4 +254,3 @@ def autenticar_usuario(conn, username_or_email: str, password: str) -> Optional[
     
     return usuario
 
-# Legacy functions removed - use crear_token/crear_refresh_token instead

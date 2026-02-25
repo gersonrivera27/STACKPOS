@@ -7,6 +7,8 @@ from typing import List
 import psycopg2
 
 from ..database import get_db
+import logging
+logger = logging.getLogger(__name__)
 from ..models.category import Category, CategoryCreate, CategoryUpdate
 
 router = APIRouter()
@@ -60,7 +62,8 @@ def create_category(category: CategoryCreate, conn = Depends(get_db), usuario = 
         raise HTTPException(status_code=400, detail="Ya existe una categoría con ese nombre")
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error interno: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Error procesando la solicitud")
 
 @router.put("/{category_id}", response_model=Category)
 def update_category(category_id: int, category: CategoryUpdate, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):
@@ -106,7 +109,8 @@ def update_category(category_id: int, category: CategoryUpdate, conn = Depends(g
         raise HTTPException(status_code=400, detail="Ya existe una categoría con ese nombre")
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error interno: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Error procesando la solicitud")
 
 @router.delete("/{category_id}")
 def delete_category(category_id: int, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):

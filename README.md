@@ -229,10 +229,10 @@ docker compose logs -f
 
 **Standard Login:**
 - Username: `admin`
-- Password: `BurgerAdmin2025!`
+- Password: set during initial deployment (see DEPLOYMENT.md)
 
 **PIN Login:**
-- Select user, enter PIN (admin PIN: `1234`)
+- Select user from the PIN screen, enter your assigned PIN
 
 ---
 

@@ -2,12 +2,16 @@
 Router de autenticación con JWT
 Sistema completo de login, perfil y verificación
 """
-from datetime import timedelta
+import hashlib
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from typing import Annotated, List
+from typing import List
 
 from ..database import get_db
-from ..schemas.user import LoginRequest, LoginResponse, UsuarioResponse, User, PinLoginRequest, RefreshTokenRequest
+from ..schemas.user import (
+    LoginRequest, LoginResponse, UsuarioResponse, User,
+    PinLoginRequest, RefreshTokenRequest, LogoutRequest
+)
 from ..security import (
     autenticar_usuario,
     crear_token,
@@ -19,8 +23,57 @@ from ..security import (
 )
 from ..core.rabbitmq import mq, get_client_ip
 from ..core.rate_limiter import rate_limiter
+from ..config import settings
 
 router = APIRouter()
+
+
+# ============================================
+# HELPERS: Tabla refresh_tokens
+# ============================================
+
+def _hash_token(token: str) -> str:
+    """SHA-256 del token JWT (no almacenamos el token completo)."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _store_refresh_token(conn, user_id: int, token: str) -> None:
+    """Guarda el hash del refresh token en la tabla refresh_tokens."""
+    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+           VALUES (%s, %s, %s)""",
+        (user_id, _hash_token(token), expires_at)
+    )
+    conn.commit()
+
+
+def _revoke_refresh_token(conn, token: str) -> bool:
+    """Marca el refresh token como revocado. Devuelve True si existía."""
+    cursor = conn.cursor()
+    cursor.execute(
+        """UPDATE refresh_tokens
+           SET revoked_at = NOW()
+           WHERE token_hash = %s AND revoked_at IS NULL""",
+        (_hash_token(token),)
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def _is_refresh_token_valid(conn, token: str) -> bool:
+    """Comprueba que el token existe, no está revocado y no ha expirado."""
+    cursor = conn.cursor()
+    cursor.execute(
+        """SELECT 1 FROM refresh_tokens
+           WHERE token_hash = %s
+             AND revoked_at IS NULL
+             AND expires_at > NOW()""",
+        (_hash_token(token),)
+    )
+    return cursor.fetchone() is not None
+
 
 # ============================================
 # ENDPOINTS DE AUTENTICACIÓN
@@ -107,7 +160,9 @@ async def login(
     token = crear_token(usuario)
     refresh_token = crear_refresh_token(usuario)
 
-    # Preparar respuesta
+    # Registrar refresh token en la base de datos para poder revocarlo
+    _store_refresh_token(conn, usuario['id'], refresh_token)
+
     usuario_response = UsuarioResponse(
         id=usuario['id'],
         username=usuario['username'],
@@ -125,15 +180,12 @@ async def login(
         usuario=usuario_response
     )
 
+
 @router.get("/perfil", response_model=User)
 async def obtener_perfil(
     usuario = Depends(obtener_usuario_actual)
 ):
-    """
-    Obtener perfil del usuario autenticado
-    
-    Requiere: Token JWT válido en header Authorization
-    """
+    """Obtener perfil del usuario autenticado."""
     return User(
         id=usuario['id'],
         username=usuario['username'],
@@ -145,16 +197,12 @@ async def obtener_perfil(
         last_login=usuario.get('last_login')
     )
 
+
 @router.get("/verificar")
 async def verificar_token(
     usuario = Depends(obtener_usuario_actual)
 ):
-    """
-    Verificar si el token JWT es válido
-    
-    Returns:
-        Dict con validez del token y datos del usuario
-    """
+    """Verificar si el token JWT es válido."""
     return {
         "valido": True,
         "usuario": {
@@ -167,6 +215,7 @@ async def verificar_token(
         }
     }
 
+
 @router.get("/users-list", response_model=List[UsuarioResponse])
 def listar_usuarios_login(
     conn = Depends(get_db),
@@ -174,7 +223,9 @@ def listar_usuarios_login(
 ):
     """Listar usuarios activos. Requiere autenticación."""
     cursor = conn.cursor()
-    cursor.execute("SELECT id, username, email, full_name, role, is_active FROM users WHERE is_active = TRUE ORDER BY full_name")
+    cursor.execute(
+        "SELECT id, username, email, full_name, role, is_active FROM users WHERE is_active = TRUE ORDER BY full_name"
+    )
     users = cursor.fetchall()
     return [
         UsuarioResponse(
@@ -182,6 +233,7 @@ def listar_usuarios_login(
             full_name=u['full_name'], role=u['role'], is_active=u['is_active']
         ) for u in users
     ]
+
 
 @router.post("/pin-login", response_model=LoginResponse)
 async def login_con_pin(
@@ -206,24 +258,17 @@ async def login_con_pin(
     rate_limiter.record_login_attempt(client_ip)
 
     cursor = conn.cursor()
-    # First find user by ID only
     cursor.execute("SELECT * FROM users WHERE id = %s AND is_active = TRUE", (datos.user_id,))
     usuario = cursor.fetchone()
 
-    # Then verify PIN hash
+    # Verificar PIN hasheado con bcrypt
     is_valid_pin = False
     if usuario and usuario.get('pin'):
-        # For backwards compatibility during transition, we might have unhashed pins.
-        # But we assume the hash_pins script runs correctly.
         pin_hash = usuario['pin']
         if str(pin_hash).startswith("$2"):
             is_valid_pin = verificar_password(datos.pin, pin_hash)
-        else:
-            # Fallback if somehow there's still a plaintext pin
-            is_valid_pin = (datos.pin == pin_hash)
 
     if not usuario or not is_valid_pin:
-        # Record failed PIN attempt for lockout
         rate_limiter.record_failed_login(f"pin_user_{datos.user_id}")
 
         await mq.publish_security_event(
@@ -252,9 +297,10 @@ async def login_con_pin(
         metadata={"login_method": "PIN"}
     )
 
-    # Generar tokens
+    # Generar tokens y registrar refresh token en DB
     token = crear_token(usuario)
     refresh_token = crear_refresh_token(usuario)
+    _store_refresh_token(conn, usuario['id'], refresh_token)
 
     usuario_response = UsuarioResponse(
         id=usuario['id'],
@@ -273,7 +319,6 @@ async def login_con_pin(
         usuario=usuario_response
     )
 
-# ============================================
 
 @router.post("/refresh", response_model=LoginResponse)
 async def refresh_access_token(
@@ -281,27 +326,38 @@ async def refresh_access_token(
     conn = Depends(get_db)
 ):
     """
-    Renovar access token usando un refresh token válido (7 días)
+    Renovar access token usando un refresh token válido.
+    Verifica que el token no haya sido revocado (logout previo).
+    Rota el refresh token: el anterior se revoca y se emite uno nuevo.
     """
     try:
-        # Esto lanzará HTTPException si el token es inválido o no es tipo "refresh"
+        # Valida firma y expiración
         payload = decodificar_refresh_token(datos.refresh_token)
         usuario_id = payload.get("usuario_id")
-        
+
+        # Verificar que el token no fue revocado por logout
+        if not _is_refresh_token_valid(conn, datos.refresh_token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token revocado o no encontrado"
+            )
+
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM users WHERE id = %s AND is_active = TRUE", (usuario_id,))
         usuario = cursor.fetchone()
-        
+
         if not usuario:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Usuario inactivo o no encontrado"
             )
-            
-        # Generar nuevos tokens (Access + Refresh) para mantener la sesión rotando
+
+        # Rotar: revocar el token usado y emitir uno nuevo
+        _revoke_refresh_token(conn, datos.refresh_token)
         token = crear_token(usuario)
         refresh_token = crear_refresh_token(usuario)
-        
+        _store_refresh_token(conn, usuario['id'], refresh_token)
+
         usuario_response = UsuarioResponse(
             id=usuario['id'],
             username=usuario['username'],
@@ -310,7 +366,7 @@ async def refresh_access_token(
             role=usuario['role'],
             is_active=usuario['is_active']
         )
-        
+
         return LoginResponse(
             exito=True,
             mensaje="Token refrescado",
@@ -320,21 +376,45 @@ async def refresh_access_token(
         )
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Error al procesar el refresh token"
         )
 
-@router.get("/admin/test")
-async def test_admin(
-    usuario = Depends(verificar_rol("admin"))
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    datos: LogoutRequest,
+    conn = Depends(get_db),
+    usuario = Depends(obtener_usuario_actual)
 ):
     """
-    Endpoint de prueba - solo usuarios con rol 'admin'
+    Cerrar sesión: revoca el refresh token en la base de datos.
+    El access token expira solo (60 min), pero el refresh queda inválido
+    de inmediato, impidiendo que se generen nuevos access tokens.
     """
-    return {
-        "mensaje": "Acceso autorizado",
-        "usuario": usuario['username'],
-        "rol": usuario['role']
-    }
+    _revoke_refresh_token(conn, datos.refresh_token)
+
+    await mq.publish_auth_event(
+        event="logout",
+        username=usuario['username'],
+        user_id=usuario['id'],
+        ip_address="unknown",
+        success=True,
+        metadata={}
+    )
+
+
+@router.get("/users-public")
+def listar_usuarios_publico(conn = Depends(get_db)):
+    """
+    Lista mínima de usuarios activos para la pantalla de selección de PIN.
+    Solo expone id y full_name. No requiere autenticación.
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT id, full_name FROM users WHERE is_active = TRUE ORDER BY full_name"
+    )
+    users = cursor.fetchall()
+    return [{"id": u["id"], "full_name": u["full_name"]} for u in users]

@@ -1,10 +1,10 @@
-fastapi==0.104.1
+fastapi==0.115.6          # 0.104.1 tenía PYSEC-2024-38 (ReDoS en multipart)
 uvicorn[standard]==0.24.0
 psycopg2-binary==2.9.9
 pydantic[email]==2.5.0
 pydantic-settings==2.1.0
-python-multipart==0.0.6
-python-jose[cryptography]==3.3.0
+python-multipart==0.0.20  # 0.0.6 tenía CVE-2024-53981, CVE-2026-24486
+python-jose[cryptography]==3.3.0  # CVE-2024-23342 en ecdsa (dependencia transitiva, sin fix upstream)
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 python-dotenv==1.0.0
@@ -22,6 +22,9 @@ colorama==0.4.6
 
 # HTTP client for Google APIs
 httpx==0.25.2
+
+# File type validation (MIME detection without libmagic dependency)
+filetype==1.2.0
 
 # Testing
 pytest==7.4.3

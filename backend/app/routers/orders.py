@@ -9,6 +9,8 @@ from datetime import datetime
 import psycopg2
 
 from ..database import get_db
+import logging
+logger = logging.getLogger(__name__)
 from ..models.order import (
     Order, OrderCreate, OrderWithDetails, OrderItem,
     OrderItemCreate, OrderStatus, OrderUpdate
@@ -248,7 +250,8 @@ async def create_order(order_data: OrderCreate, background_tasks: BackgroundTask
         import traceback
         traceback.print_exc()
         print(f"Error creating order: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error interno: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Error procesando la solicitud")
 
 @router.get("/{order_id}", response_model=OrderWithDetails)
 def get_order(order_id: int, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
@@ -374,17 +377,25 @@ def update_order_items(
     """Agregar y/o quitar items a una orden existente y recalcular totales."""
     cursor = conn.cursor()
     try:
-        # Validar que la orden exista
-        cursor.execute("SELECT id FROM orders WHERE id = %s", (order_id,))
-        if not cursor.fetchone():
+        # Validar que la orden exista y no esté cerrada
+        cursor.execute("SELECT id, status FROM orders WHERE id = %s", (order_id,))
+        existing_order = cursor.fetchone()
+        if not existing_order:
             raise HTTPException(status_code=404, detail="Orden no encontrada")
+        if existing_order['status'] in ('completed', 'cancelled'):
+            raise HTTPException(
+                status_code=400,
+                detail="No se pueden modificar órdenes completadas o canceladas"
+            )
 
         # Eliminar items solicitados
         if items_data.remove_item_ids:
-            ids_tuple = tuple(items_data.remove_item_ids)
+            # Generar placeholders individuales para evitar el uso de IN %s con tuple,
+            # que es frágil con listas de un solo elemento y no está bien tipado.
+            placeholders = ", ".join(["%s"] * len(items_data.remove_item_ids))
             cursor.execute(
-                f"DELETE FROM order_items WHERE order_id = %s AND id IN %s",
-                (order_id, ids_tuple)
+                f"DELETE FROM order_items WHERE order_id = %s AND id IN ({placeholders})",
+                (order_id, *items_data.remove_item_ids)
             )
 
         # Agregar nuevos items
@@ -476,7 +487,8 @@ def update_order_items(
         raise
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error interno: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Error procesando la solicitud")
 
 @router.patch("/{order_id}/status", response_model=Order)
 async def update_order_status(
@@ -538,4 +550,5 @@ async def update_order_status(
 
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Error interno: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Error procesando la solicitud")

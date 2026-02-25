@@ -2,7 +2,7 @@
 Router para reportes y analytics
 """
 from fastapi import APIRouter, HTTPException, Depends, Query
-from ..security import obtener_usuario_actual
+from ..security import verificar_rol
 from typing import Optional
 from datetime import date
 
@@ -11,8 +11,8 @@ from ..database import get_db
 router = APIRouter()
 
 @router.get("/daily-sales")
-def get_daily_sales(report_date: Optional[date] = None, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
-    """Reporte de ventas diarias"""
+def get_daily_sales(report_date: Optional[date] = None, conn = Depends(get_db), usuario = Depends(verificar_rol("admin", "manager"))):
+    """Reporte de ventas diarias. Requiere rol admin o manager."""
     cursor = conn.cursor()
     
     if not report_date:
@@ -52,11 +52,13 @@ def get_daily_sales(report_date: Optional[date] = None, conn = Depends(get_db), 
 def get_top_products(
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
-    limit: int = 10,
+    limit: int = Query(default=10, ge=1, le=100),
     conn = Depends(get_db),
-    usuario = Depends(obtener_usuario_actual)
+    usuario = Depends(verificar_rol("admin", "manager"))
 ):
-    """Reporte de productos más vendidos"""
+    """Reporte de productos más vendidos. Requiere rol admin o manager."""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=400, detail="date_from no puede ser posterior a date_to")
     cursor = conn.cursor()
     
     query = """
@@ -105,23 +107,28 @@ def get_revenue_by_period(
     date_to: date,
     group_by: str = "day",  # 'day', 'week', 'month'
     conn = Depends(get_db),
-    usuario = Depends(obtener_usuario_actual)
+    usuario = Depends(verificar_rol("admin", "manager"))
 ):
-    """Reporte de ingresos por período"""
+    """Reporte de ingresos por período. Requiere rol admin o manager."""
+    if date_from > date_to:
+        raise HTTPException(status_code=400, detail="date_from no puede ser posterior a date_to")
+
     cursor = conn.cursor()
-    
-    if group_by == "day":
-        date_format = "DATE(created_at)"
-    elif group_by == "week":
-        date_format = "DATE_TRUNC('week', created_at)"
-    elif group_by == "month":
-        date_format = "DATE_TRUNC('month', created_at)"
-    else:
+
+    GROUP_BY_EXPRESSIONS = {
+        "day":   "DATE(created_at)",
+        "week":  "DATE_TRUNC('week', created_at)",
+        "month": "DATE_TRUNC('month', created_at)",
+    }
+
+    if group_by not in GROUP_BY_EXPRESSIONS:
         raise HTTPException(status_code=400, detail="group_by debe ser: day, week, o month")
-    
-    query = f"""
-        SELECT 
-            {date_format} as period,
+
+    date_expr = GROUP_BY_EXPRESSIONS[group_by]
+
+    query = """
+        SELECT
+            {date_expr} as period,
             COUNT(*) as orders_count,
             SUM(total) as total_revenue,
             AVG(total) as average_ticket
@@ -130,8 +137,8 @@ def get_revenue_by_period(
         AND DATE(created_at) BETWEEN %s AND %s
         GROUP BY period
         ORDER BY period
-    """
-    
+    """.replace("{date_expr}", date_expr)
+
     cursor.execute(query, (date_from, date_to))
     results = cursor.fetchall()
     

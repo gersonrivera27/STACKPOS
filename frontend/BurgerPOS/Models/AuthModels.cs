@@ -67,3 +67,12 @@ public class RefreshTokenRequest
     [JsonPropertyName("refresh_token")]
     public string RefreshToken { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// Request body for logout — revokes the refresh token server-side
+/// </summary>
+public class LogoutRequest
+{
+    [JsonPropertyName("refresh_token")]
+    public string RefreshToken { get; set; } = string.Empty;
+}

@@ -36,22 +36,6 @@ public class PosApiService
         }
     }
 
-    // ==================== CONFIGURATION ====================
-
-    public async Task<string?> GetGoogleMapsApiKeyAsync()
-    {
-        try
-        {
-            var response = await _httpClient.GetFromJsonAsync<PublicConfigResponse>("/api/config/public");
-            return response?.GoogleMapsApiKey;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error obteniendo Google Maps API key");
-            return null;
-        }
-    }
-
     // ==================== GEOCODING ====================
 
     public async Task<GeocodeResponse?> GeocodeEircodeAsync(string eircode)

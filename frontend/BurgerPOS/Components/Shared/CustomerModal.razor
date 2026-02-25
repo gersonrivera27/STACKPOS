@@ -514,13 +514,13 @@
         }
     }
 
-    private void HandleBackdropClick()
+    private async Task HandleBackdropClick()
     {
         // Solo cerrar si no es el render inicial
         if (!isInitialRender)
         {
-            Logger.LogInformation("🖱️ Click en backdrop - Cerrando modal");
-            Cancel();
+            Logger.LogInformation("Click en backdrop - Cerrando modal");
+            await Cancel();
         }
     }
 

@@ -38,16 +38,18 @@ class Settings(BaseSettings):
 
     # Seguridad - NO DEFAULT VALUES for production
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
+
     # JWT Configuration - Must be set via environment
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "")
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
-    JWT_EXPIRATION_HOURS: int = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
+    # Access token: minutos (default 60 min). Configurable via ACCESS_TOKEN_EXPIRE_MINUTES
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+    # Refresh token: días (default 7 días). Configurable via REFRESH_TOKEN_EXPIRE_DAYS
+    REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
-    # RabbitMQ Configuration
-    RABBITMQ_URL: str = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+    # RabbitMQ Configuration — debe definirse via variable de entorno RABBITMQ_URL.
+    # No se provee valor por defecto para evitar credenciales hardcodeadas.
+    RABBITMQ_URL: str = os.getenv("RABBITMQ_URL", "")
     RABBITMQ_ENABLED: bool = os.getenv("RABBITMQ_ENABLED", "true").lower() == "true"
 
     # Google Maps API

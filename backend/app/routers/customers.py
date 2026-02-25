@@ -7,23 +7,30 @@ import psycopg2
 
 from ..database import get_db
 from ..models.customer import Customer, CustomerCreate, CustomerUpdate
-from ..security import obtener_usuario_actual
+from ..security import obtener_usuario_actual, verificar_rol
 
 router = APIRouter()
+
+MAX_SEARCH_LENGTH = 100  # Evita consultas LIKE con strings muy largos
+MAX_LIMIT = 200          # Tope absoluto de resultados por request
 
 @router.get("", response_model=List[Customer])
 def get_customers(
     search: Optional[str] = None,
-    limit: int = 100,
+    limit: int = Query(default=100, ge=1, le=MAX_LIMIT),
     conn = Depends(get_db),
     usuario = Depends(obtener_usuario_actual)
 ):
     """Obtener todos los clientes con búsqueda opcional"""
     cursor = conn.cursor()
-    
+
+    # Truncar el término de búsqueda para evitar consultas LIKE extremadamente largas
+    if search:
+        search = search[:MAX_SEARCH_LENGTH]
+
     if search:
         query = """
-            SELECT * FROM customers 
+            SELECT * FROM customers
             WHERE phone LIKE %s OR name ILIKE %s OR eircode ILIKE %s
             ORDER BY created_at DESC LIMIT %s
         """
@@ -150,8 +157,8 @@ def update_customer(
     return updated_customer
 
 @router.delete("/{customer_id}")
-def delete_customer(customer_id: int, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
-    """Desactivar un cliente (soft delete)"""
+def delete_customer(customer_id: int, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):
+    """Desactivar un cliente (soft delete). Requiere rol admin."""
     cursor = conn.cursor()
     cursor.execute(
         "UPDATE customers SET is_active = false WHERE id = %s RETURNING id",

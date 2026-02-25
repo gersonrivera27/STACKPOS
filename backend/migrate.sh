@@ -46,19 +46,18 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     """Configuración de la aplicación"""
-    
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL", 
-        "postgresql://postgres:postgres@db:5432/burger_pos"
-    )
-    
+
+    # DATABASE_URL debe definirse como variable de entorno.
+    # Ejemplo: postgresql://usuario:contraseña@host:5432/nombre_db
+    DATABASE_URL: str
+
     API_TITLE: str = "Burger POS API"
     API_VERSION: str = "1.0.0"
     API_DESCRIPTION: str = "API completa para sistema POS de restaurante de hamburguesas"
-    
+
     ALLOWED_ORIGINS: list = ["*"]
     TAX_RATE: float = 0.10
-    
+
     class Config:
         case_sensitive = True
 
@@ -98,14 +97,8 @@ echo ""
 echo "${BLUE}📦 Paso 4: Verificando requirements.txt...${NC}"
 if [ ! -f "requirements.txt" ]; then
     echo "${YELLOW}⚠️  requirements.txt no encontrado, creando uno nuevo...${NC}"
-    cat > requirements.txt << 'REQEOF'
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-psycopg2-binary==2.9.9
-pydantic==2.5.0
-pydantic-settings==2.1.0
-python-multipart==0.0.6
-REQEOF
+    echo "⚠️  Crea requirements.txt manualmente con las versiones actuales del proyecto."
+    echo "    Consulta el requirements.txt existente en el repositorio para las versiones correctas."
     echo "${GREEN}✓ requirements.txt creado${NC}"
 else
     echo "${GREEN}✓ requirements.txt ya existe${NC}"

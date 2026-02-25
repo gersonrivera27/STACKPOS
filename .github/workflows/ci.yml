@@ -32,6 +32,23 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Security audit - check for vulnerable dependencies
+        run: |
+          pip install pip-audit
+          pip-audit --requirement requirements.txt \
+            --ignore-vuln CVE-2024-23342 \
+            --ignore-vuln PYSEC-2024-232 \
+            --ignore-vuln PYSEC-2024-233 \
+            --ignore-vuln CVE-2025-54121 \
+            --ignore-vuln CVE-2025-62727 \
+            --ignore-vuln CVE-2026-24486
+          # Ignorados porque no tienen fix compatible con las versiones actuales:
+          # CVE-2024-23342  : ecdsa (dep. transitiva de python-jose, sin fix upstream)
+          # PYSEC-2024-232/3: python-jose (el fix requiere 3.4.0 que no existe en PyPI)
+          # CVE-2025-54121/62727: starlette (el fix >=0.47.2 requiere FastAPI aún no publicado)
+          # CVE-2026-24486  : python-multipart (actualizar a 0.0.22 cuando FastAPI lo soporte)
+        continue-on-error: false
+
       - name: Create required directories
         run: mkdir -p uploads
 

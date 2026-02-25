@@ -38,7 +38,7 @@ public class SalesSummary
 public class SalesByType
 {
     [JsonPropertyName("order_type")]
-    public string OrderType { get; set; }
+    public string OrderType { get; set; } = "";
 
     [JsonPropertyName("count")]
     public int Count { get; set; }
@@ -65,10 +65,10 @@ public class TopProductItem
     public int Id { get; set; }
 
     [JsonPropertyName("name")]
-    public string Name { get; set; }
+    public string Name { get; set; } = "";
 
     [JsonPropertyName("category")]
-    public string Category { get; set; }
+    public string Category { get; set; } = "";
 
     [JsonPropertyName("times_ordered")]
     public int TimesOrdered { get; set; }

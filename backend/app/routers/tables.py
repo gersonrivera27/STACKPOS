@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException, Depends, status
-from ..security import obtener_usuario_actual
+from fastapi import APIRouter, HTTPException, Depends, status, Query
+from ..security import obtener_usuario_actual, verificar_rol
 from typing import List, Optional
 from decimal import Decimal
 from datetime import datetime
@@ -66,8 +66,8 @@ def get_tables(conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)
     return list(unique_tables)
 
 @router.post("", response_model=Table, status_code=status.HTTP_201_CREATED)
-def create_table(table: TableCreate, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
-    """Crear una nueva mesa"""
+def create_table(table: TableCreate, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):
+    """Crear una nueva mesa. Requiere rol admin."""
     cursor = conn.cursor()
     try:
         cursor.execute(
@@ -97,9 +97,17 @@ def update_table_status(table_id: int, is_occupied: bool, conn = Depends(get_db)
     conn.commit()
     return Table(id=updated_table['id'], table_number=updated_table['table_number'], is_occupied=updated_table['is_occupied'])
 
+MAX_TABLE_COORD = 5000  # Límite razonable para el canvas del plano de mesas
+
 @router.patch("/{table_id}/position")
-def update_table_position(table_id: int, x: int, y: int, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
-    """Actualizar la posición de una mesa"""
+def update_table_position(
+    table_id: int,
+    x: int = Query(..., ge=0, le=MAX_TABLE_COORD),
+    y: int = Query(..., ge=0, le=MAX_TABLE_COORD),
+    conn = Depends(get_db),
+    usuario = Depends(verificar_rol("admin"))
+):
+    """Actualizar la posición de una mesa en el plano. Requiere rol admin."""
     cursor = conn.cursor()
     cursor.execute(
         "UPDATE tables SET x = %s, y = %s WHERE id = %s RETURNING *",
