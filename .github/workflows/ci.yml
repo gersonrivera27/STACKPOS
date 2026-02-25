@@ -85,8 +85,8 @@ jobs:
 
       - name: Build Docker images
         run: |
-          docker compose build --no-cache backend
-          docker compose -f docker-compose.prod.example.yml build --no-cache frontend
+          docker build -t burger-backend ./backend
+          docker build -t burger-frontend -f frontend/BurgerPOS/Dockerfile ./frontend/BurgerPOS
 
   # ============================================
   # Job 4: Deploy to Production
