@@ -62,6 +62,26 @@ CREATE INDEX IF NOT EXISTS idx_orders_user         ON orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number);
 
 -- -----------------------------------------------------------
+-- 4b. order_items: add missing columns
+-- -----------------------------------------------------------
+ALTER TABLE order_items
+    ADD COLUMN IF NOT EXISTS unit_price           DECIMAL(10, 2) DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS special_instructions TEXT;
+
+-- -----------------------------------------------------------
+-- 4c. order_item_modifiers: create table if not exists
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS order_item_modifiers (
+    id            SERIAL PRIMARY KEY,
+    order_item_id INTEGER NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
+    modifier_id   INTEGER NOT NULL REFERENCES modifiers(id) ON DELETE CASCADE,
+    price         DECIMAL(10, 2) DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_oim_order_item ON order_item_modifiers(order_item_id);
+CREATE INDEX IF NOT EXISTS idx_oim_modifier   ON order_item_modifiers(modifier_id);
+
+-- -----------------------------------------------------------
 -- 5. cash_sessions: create table with ALL columns used by code
 -- -----------------------------------------------------------
 CREATE TABLE IF NOT EXISTS cash_sessions (
