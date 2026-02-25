@@ -44,8 +44,11 @@ ALTER TABLE tables
     ADD COLUMN IF NOT EXISTS y INTEGER DEFAULT 0;
 
 -- -----------------------------------------------------------
--- 4. orders: add missing columns
+-- 4. orders: fix NOT NULL constraint + add missing columns
 -- -----------------------------------------------------------
+-- customer_id is no longer required (code uses customer_name directly)
+ALTER TABLE orders ALTER COLUMN customer_id DROP NOT NULL;
+
 ALTER TABLE orders
     ADD COLUMN IF NOT EXISTS order_number   VARCHAR(20),
     ADD COLUMN IF NOT EXISTS table_id       INTEGER REFERENCES tables(id) ON DELETE SET NULL,
