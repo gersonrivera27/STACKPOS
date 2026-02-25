@@ -128,7 +128,26 @@ BEGIN
 END $$;
 
 -- -----------------------------------------------------------
--- 6. audit_logs: create if not exists (for audit_middleware)
+-- 6. payments: create table if not exists
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS payments (
+    id              SERIAL PRIMARY KEY,
+    order_id        INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    cash_session_id INTEGER REFERENCES cash_sessions(id) ON DELETE SET NULL,
+    payment_type    VARCHAR(20) NOT NULL CHECK (payment_type IN ('cash', 'card', 'mixed')),
+    total_amount    DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    cash_amount     DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    card_amount     DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    tip_amount      DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    change_amount   DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_payments_order   ON payments(order_id);
+CREATE INDEX IF NOT EXISTS idx_payments_session ON payments(cash_session_id);
+
+-- -----------------------------------------------------------
+-- 7. audit_logs: create if not exists (for audit_middleware)
 -- -----------------------------------------------------------
 CREATE TABLE IF NOT EXISTS audit_logs (
     id          SERIAL PRIMARY KEY,
