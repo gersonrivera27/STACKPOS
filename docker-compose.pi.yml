@@ -30,6 +30,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:5000
       - API_URL=http://burger-backend:8000
+      - GoogleMapsApiKey=${GOOGLE_MAPS_API_KEY}
     volumes:
       - data-protection-keys:/home/appuser/.aspnet/DataProtection-Keys
     logging:
