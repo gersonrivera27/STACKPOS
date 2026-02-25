@@ -47,13 +47,14 @@ ALTER TABLE tables
 -- 4. orders: add missing columns
 -- -----------------------------------------------------------
 ALTER TABLE orders
-    ADD COLUMN IF NOT EXISTS order_number VARCHAR(20),
-    ADD COLUMN IF NOT EXISTS table_id INTEGER REFERENCES tables(id) ON DELETE SET NULL,
-    ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS order_number   VARCHAR(20),
+    ADD COLUMN IF NOT EXISTS table_id       INTEGER REFERENCES tables(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS user_id        INTEGER REFERENCES users(id) ON DELETE SET NULL,
     ADD COLUMN IF NOT EXISTS cash_session_id INTEGER,
     ADD COLUMN IF NOT EXISTS payment_method VARCHAR(50) DEFAULT 'cash',
-    ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS customer_name VARCHAR(255);
+    ADD COLUMN IF NOT EXISTS completed_at   TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS customer_name  VARCHAR(255),
+    ADD COLUMN IF NOT EXISTS discount       DECIMAL(10, 2) DEFAULT 0;
 
 -- Index for fast lookups
 CREATE INDEX IF NOT EXISTS idx_orders_table        ON orders(table_id);
