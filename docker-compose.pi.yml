@@ -1,3 +1,14 @@
+# ==============================================
+# BurgerPOS — Raspberry Pi + Cloudflare Tunnel
+# ==============================================
+# No SSL needed — Cloudflare Tunnel handles encryption.
+# No ports exposed to the internet — Tunnel connects outbound.
+#
+# Usage:
+#   cp docker-compose.pi.yml docker-compose.prod.yml
+#   docker compose -f docker-compose.prod.yml up -d
+# ==============================================
+
 services:
   # ============================================
   # Frontend - Blazor Server
@@ -55,7 +66,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
     logging:
       driver: "json-file"
       options:
@@ -70,7 +81,6 @@ services:
     container_name: burger-db
     env_file:
       - ./.env.db
-    # No ports exposed — only accessible via Docker network
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -90,7 +100,7 @@ services:
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: burger-rabbitmq
-    # Management UI only on localhost for admin access
+    # Management UI only on localhost (access via SSH tunnel)
     ports:
       - "127.0.0.1:15672:15672"
     environment:
@@ -133,17 +143,15 @@ services:
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-burger_mq}:${RABBITMQ_PASS}@rabbitmq:5672/
 
   # ============================================
-  # Nginx - Reverse Proxy
+  # Nginx — Reverse Proxy (HTTP only, Cloudflare handles SSL)
   # ============================================
   nginx:
     image: nginx:alpine
     container_name: burger-nginx
     ports:
-      - "80:80"
-      - "443:443"
+      - "8088:80" # Local port 8088 → Cloudflare Tunnel routes here
     volumes:
-      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      - ssl-certs:/etc/nginx/ssl:ro
+      - ./nginx/nginx.cloudflare.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - frontend
       - backend
@@ -187,4 +195,3 @@ volumes:
   data-protection-keys:
   rabbitmq_data:
   db-backups:
-  ssl-certs:

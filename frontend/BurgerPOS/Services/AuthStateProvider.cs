@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -12,12 +13,19 @@ namespace BurgerPOS.Services;
 public class AuthStateProvider : AuthenticationStateProvider
 {
     private readonly ILocalStorageService _localStorage;
+    private readonly HttpClient _httpClient;
     private const string TOKEN_KEY = "authToken";
     private const string REFRESH_TOKEN_KEY = "refreshToken";
+    
+    // In-memory cache for token so DelegatingHandler can access it
+    // without JS Interop (which is unavailable in HttpClient pipeline)
+    private string? _cachedToken;
+    private string? _cachedRefreshToken;
 
-    public AuthStateProvider(ILocalStorageService localStorage)
+    public AuthStateProvider(ILocalStorageService localStorage, HttpClient httpClient)
     {
         _localStorage = localStorage;
+        _httpClient = httpClient;
     }
 
     private async Task LogToBrowser(string message)
@@ -55,6 +63,12 @@ public class AuthStateProvider : AuthenticationStateProvider
                     var identity = new ClaimsIdentity(claims, "jwt");
                     var user = new ClaimsPrincipal(identity);
 
+                    // Cache the token in memory for the DelegatingHandler
+                    _cachedToken = token?.Trim('"');
+
+                    // INYECTAR DIRECTAMENTE EN EL HTTP CLIENT AQUI
+                    _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _cachedToken);
+
                     await LogToBrowser($"🔐 AuthStateProvider: Usuario autenticado: {identity.Name}");
                     return new AuthenticationState(user);
                 }
@@ -64,6 +78,7 @@ public class AuthStateProvider : AuthenticationStateProvider
                     // Token inválido - limpiar
                     await _localStorage.RemoveItemAsync(TOKEN_KEY);
                     await _localStorage.RemoveItemAsync(REFRESH_TOKEN_KEY);
+                    _httpClient.DefaultRequestHeaders.Authorization = null;
                     return new AuthenticationState(
                         new ClaimsPrincipal(new ClaimsIdentity())
                     );
@@ -96,6 +111,7 @@ public class AuthStateProvider : AuthenticationStateProvider
         }
 
         // Fallback (no debería llegar aquí, pero por seguridad)
+        _httpClient.DefaultRequestHeaders.Authorization = null;
         return new AuthenticationState(
             new ClaimsPrincipal(new ClaimsIdentity())
         );
@@ -120,6 +136,12 @@ public class AuthStateProvider : AuthenticationStateProvider
             var identity = new ClaimsIdentity(claims, "jwt");
             var user = new ClaimsPrincipal(identity);
 
+            // Cache the token in memory
+            _cachedToken = token;
+            _cachedRefreshToken = refreshToken;
+
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
             NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(user)));
         }
         catch (InvalidOperationException)
@@ -136,6 +158,9 @@ public class AuthStateProvider : AuthenticationStateProvider
         await LogToBrowser("🔐 AuthStateProvider: MarkUserAsLoggedOut llamado");
         await _localStorage.RemoveItemAsync(TOKEN_KEY);
         await _localStorage.RemoveItemAsync(REFRESH_TOKEN_KEY);
+        _httpClient.DefaultRequestHeaders.Authorization = null;
+        _cachedToken = null;
+        _cachedRefreshToken = null;
         
         var anonymous = new ClaimsPrincipal(new ClaimsIdentity());
         NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(anonymous)));
@@ -146,7 +171,20 @@ public class AuthStateProvider : AuthenticationStateProvider
     /// </summary>
     public async Task<string?> GetToken()
     {
-        return await _localStorage.GetItemAsync<string>(TOKEN_KEY);
+        try
+        {
+            var token = await _localStorage.GetItemAsync<string>(TOKEN_KEY);
+            var cleanToken = token?.Trim('"');
+            if (!string.IsNullOrWhiteSpace(cleanToken))
+            {
+                _cachedToken = cleanToken;
+            }
+            return cleanToken;
+        }
+        catch (InvalidOperationException)
+        {
+            return _cachedToken;
+        }
     }
 
     /// <summary>
@@ -154,7 +192,20 @@ public class AuthStateProvider : AuthenticationStateProvider
     /// </summary>
     public async Task<string?> GetRefreshToken()
     {
-        return await _localStorage.GetItemAsync<string>(REFRESH_TOKEN_KEY);
+        try
+        {
+            var token = await _localStorage.GetItemAsync<string>(REFRESH_TOKEN_KEY);
+            var cleanToken = token?.Trim('"');
+            if (!string.IsNullOrWhiteSpace(cleanToken))
+            {
+                _cachedRefreshToken = cleanToken; // Update cache
+            }
+            return cleanToken;
+        }
+        catch (InvalidOperationException)
+        {
+            return _cachedRefreshToken;
+        }
     }
 
     /// <summary>

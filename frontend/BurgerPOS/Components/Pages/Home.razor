@@ -148,19 +148,23 @@
         new OrderLine { Id = 4, Name = "Line 4", IsActive = false }
     };
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        Logger.LogInformation("🚀 Iniciando POS Home");
-        
-        // Test backend connection
-        try
+        if (firstRender)
         {
-            backendConnected = await ApiService.TestConnectionAsync();
-            Logger.LogInformation("Backend: {Status}", backendConnected ? "Conectado" : "Desconectado");
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error conectando al backend");
+            Logger.LogInformation("🚀 Iniciando POS Home");
+            
+            // Test backend connection
+            try
+            {
+                backendConnected = await ApiService.TestConnectionAsync();
+                Logger.LogInformation("Backend: {Status}", backendConnected ? "Conectado" : "Desconectado");
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error conectando al backend");
+            }
         }
     }
 

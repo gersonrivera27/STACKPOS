@@ -1,5 +1,8 @@
+using Blazored.LocalStorage;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using BurgerPOS.Models;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace BurgerPOS.Services;
 
@@ -7,13 +10,27 @@ public class PosApiService
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<PosApiService> _logger;
-
-    public PosApiService(HttpClient httpClient, ILogger<PosApiService> logger)
+    private readonly AuthStateProvider _authStateProvider;
+    
+    public PosApiService(HttpClient httpClient, ILogger<PosApiService> logger, AuthStateProvider authStateProvider)
     {
         _httpClient = httpClient;
         _logger = logger;
+        _authStateProvider = authStateProvider;
     }
-
+    
+    /// <summary>
+    /// Attaches the JWT token to the HttpClient before each API call.
+    /// Uses AuthStateProvider's in-memory cached token (no JS Interop needed).
+    /// </summary>
+    private async Task EnsureAuthHeaderAsync()
+    {
+        var token = await _authStateProvider.GetToken();
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+    }
     // ==================== HEALTH CHECK ====================
 
     public async Task<bool> TestConnectionAsync()
@@ -60,6 +77,7 @@ public class PosApiService
         {
             _logger.LogInformation("Geocoding Eircode: {Eircode}", eircode);
 
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.GetFromJsonAsync<GeocodeResponse>(
                 $"/api/geocoding/eircode?code={Uri.EscapeDataString(eircode)}");
 
@@ -93,6 +111,7 @@ public class PosApiService
                 url += $"&search={Uri.EscapeDataString(search)}";
             }
 
+            await EnsureAuthHeaderAsync();
             var customers = await _httpClient.GetFromJsonAsync<List<Customer>>(url);
             return customers ?? new List<Customer>();
         }
@@ -109,6 +128,7 @@ public class PosApiService
         {
             _logger.LogInformation("Buscando cliente por teléfono: {Phone}", phone);
 
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.GetAsync($"/api/customers/search-by-phone/{Uri.EscapeDataString(phone)}");
 
             if (response.IsSuccessStatusCode)
@@ -131,6 +151,7 @@ public class PosApiService
         {
             _logger.LogInformation("Buscando clientes con query: {Query}", query);
 
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.GetAsync($"/api/customers?search={Uri.EscapeDataString(query)}&limit=10");
 
             if (response.IsSuccessStatusCode)
@@ -157,6 +178,7 @@ public class PosApiService
     {
         try
         {
+
             var modifiers = await _httpClient.GetFromJsonAsync<List<Modifier>>("/api/modifiers");
             return modifiers ?? new List<Modifier>();
         }
@@ -171,6 +193,8 @@ public class PosApiService
     {
         try
         {
+
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PostAsJsonAsync("/api/customers", customer);
             if (response.IsSuccessStatusCode)
             {
@@ -191,6 +215,8 @@ public class PosApiService
     {
         try
         {
+
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PutAsJsonAsync($"/api/customers/{customerId}", customer);
             if (response.IsSuccessStatusCode)
             {
@@ -221,6 +247,7 @@ public class PosApiService
                 url += $"&category_id={categoryId.Value}";
             }
 
+            await EnsureAuthHeaderAsync();
             var products = await _httpClient.GetFromJsonAsync<List<Product>>(url);
             return products ?? new List<Product>();
         }
@@ -235,6 +262,8 @@ public class PosApiService
     {
         try
         {
+
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PostAsJsonAsync("/api/products", product);
             if (response.IsSuccessStatusCode)
             {
@@ -253,6 +282,8 @@ public class PosApiService
     {
         try
         {
+
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PutAsJsonAsync($"/api/products/{productId}", product);
             if (response.IsSuccessStatusCode)
             {
@@ -271,6 +302,8 @@ public class PosApiService
     {
         try
         {
+
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.DeleteAsync($"/api/products/{productId}");
             return response.IsSuccessStatusCode;
         }
@@ -292,6 +325,7 @@ public class PosApiService
             
             content.Add(fileContent, "file", file.Name);
 
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PostAsync("/api/uploads/images", content);
             
             if (response.IsSuccessStatusCode)
@@ -325,6 +359,7 @@ public class PosApiService
                 url += "&only_active_session=true";
             }
 
+            await EnsureAuthHeaderAsync();
             var orders = await _httpClient.GetFromJsonAsync<List<Order>>(url);
             return orders ?? new List<Order>();
         }
@@ -341,6 +376,8 @@ public class PosApiService
     {
         try
         {
+
+            await EnsureAuthHeaderAsync();
             var categories = await _httpClient.GetFromJsonAsync<List<Category>>("/api/categories");
             return categories ?? new List<Category>();
         }
@@ -355,6 +392,8 @@ public class PosApiService
     {
         try
         {
+
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PostAsJsonAsync("/api/categories", category);
             if (response.IsSuccessStatusCode)
             {
@@ -373,6 +412,8 @@ public class PosApiService
     {
         try
         {
+
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PutAsJsonAsync($"/api/categories/{id}", category);
             if (response.IsSuccessStatusCode)
             {
@@ -391,6 +432,8 @@ public class PosApiService
     {
         try
         {
+
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.DeleteAsync($"/api/categories/{id}");
             return response.IsSuccessStatusCode;
         }
@@ -407,6 +450,7 @@ public class PosApiService
         {
             _logger.LogInformation("Creando orden para: {CustomerName}", orderData.CustomerName);
             
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PostAsJsonAsync("/api/orders", orderData);
             
             if (response.IsSuccessStatusCode)
@@ -433,6 +477,8 @@ public class PosApiService
     {
         try
         {
+
+            await EnsureAuthHeaderAsync();
             var order = await _httpClient.GetFromJsonAsync<OrderWithDetails>($"/api/orders/{orderId}");
             return order;
         }
@@ -459,6 +505,7 @@ public class PosApiService
             // update_order_status(order_id: int, new_status: OrderStatus, ...)
             // It usually expects query param if not specified as Body.
             
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PatchAsync($"/api/orders/{orderId}/status?new_status={status}", null);
             
             if (response.IsSuccessStatusCode)
@@ -484,6 +531,7 @@ public class PosApiService
         {
             _logger.LogInformation("Procesando pago para orden: {OrderId}", payment.OrderId);
             
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PostAsJsonAsync("/api/cash/payments", payment);
             
             if (response.IsSuccessStatusCode)
@@ -518,6 +566,8 @@ public class PosApiService
                 url += $"?user_id={userId.Value}";
             }
             
+
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.GetAsync(url);
             if (response.IsSuccessStatusCode)
             {
@@ -538,6 +588,7 @@ public class PosApiService
         {
             _logger.LogInformation("Abriendo sesión de caja con monto: {Amount}", session.OpeningAmount);
             
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PostAsJsonAsync("/api/cash/sessions", session);
             
             if (response.IsSuccessStatusCode)
@@ -564,6 +615,7 @@ public class PosApiService
         {
             _logger.LogInformation("Cerrando sesión de caja {SessionId}", sessionId);
             
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PostAsJsonAsync($"/api/cash/sessions/{sessionId}/close", closeData);
             
             if (response.IsSuccessStatusCode)
@@ -583,6 +635,8 @@ public class PosApiService
     {
         try
         {
+
+            await EnsureAuthHeaderAsync();
             return await _httpClient.GetFromJsonAsync<CashSession>($"/api/cash/sessions/{sessionId}");
         }
         catch (Exception ex)
@@ -602,6 +656,8 @@ public class PosApiService
                 url += $"?status={status}";
             }
             
+
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.GetAsync(url);
             if (response.IsSuccessStatusCode)
             {
@@ -619,6 +675,8 @@ public class PosApiService
     {
         try
         {
+
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.GetAsync($"/api/cash/payments/order/{orderId}");
             if (response.IsSuccessStatusCode)
             {
@@ -645,6 +703,8 @@ public class PosApiService
                 url += $"?report_date={date.Value:yyyy-MM-dd}";
             }
 
+
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.GetAsync(url);
             if (response.IsSuccessStatusCode)
             {
@@ -667,6 +727,7 @@ public class PosApiService
             if (from.HasValue) url += $"&date_from={from.Value:yyyy-MM-dd}";
             if (to.HasValue) url += $"&date_to={to.Value:yyyy-MM-dd}";
 
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.GetAsync(url);
             if (response.IsSuccessStatusCode)
             {
@@ -687,6 +748,7 @@ public class PosApiService
     {
         try
         {
+            await EnsureAuthHeaderAsync();
             var tables = await _httpClient.GetFromJsonAsync<List<Table>>("/api/tables");
             return tables ?? new List<Table>();
         }
@@ -701,6 +763,7 @@ public class PosApiService
     {
         try
         {
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PatchAsync($"/api/tables/{tableId}/position?x={x}&y={y}", null);
             return response.IsSuccessStatusCode;
         }
@@ -715,6 +778,7 @@ public class PosApiService
     {
         try
         {
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PatchAsync($"/api/tables/{tableId}/status?is_occupied={isOccupied.ToString().ToLower()}", null);
             return response.IsSuccessStatusCode;
         }
@@ -729,6 +793,7 @@ public class PosApiService
     {
         try
         {
+            await EnsureAuthHeaderAsync();
             var response = await _httpClient.PostAsJsonAsync($"/api/orders/{orderId}/items", update);
             if (response.IsSuccessStatusCode)
             {

@@ -177,9 +177,12 @@
     private TopProductsResponse? topProducts;
     private bool isLoading = true;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadData();
+        if (firstRender)
+        {
+            await LoadData();
+        }
     }
 
     private async Task OnDateChanged(ChangeEventArgs e)

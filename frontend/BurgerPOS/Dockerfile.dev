@@ -21,6 +21,14 @@ WORKDIR /app/BurgerPOS
 # Force clean build to avoid stale staticwebassets cache
 RUN dotnet build -c Debug
 
+# Create non-root user and change ownership AFTER build
+# (build creates obj/ files that need to be writable by the runtime user)
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
 # Exponer puerto
 EXPOSE 5000
 

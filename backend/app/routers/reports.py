@@ -2,7 +2,7 @@
 Router para reportes y analytics
 """
 from fastapi import APIRouter, HTTPException, Depends, Query
-from ..security import obtener_usuario_actual
+from ..security import obtener_usuario_actual, verificar_rol
 from typing import Optional
 from datetime import date
 
@@ -11,7 +11,7 @@ from ..database import get_db
 router = APIRouter()
 
 @router.get("/daily-sales")
-def get_daily_sales(report_date: Optional[date] = None, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
+def get_daily_sales(report_date: Optional[date] = None, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):
     """Reporte de ventas diarias"""
     cursor = conn.cursor()
     
@@ -54,9 +54,11 @@ def get_top_products(
     date_to: Optional[date] = None,
     limit: int = 10,
     conn = Depends(get_db),
-    usuario = Depends(obtener_usuario_actual)
+    usuario = Depends(verificar_rol("admin"))
 ):
     """Reporte de productos más vendidos"""
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=400, detail="date_from no puede ser posterior a date_to")
     cursor = conn.cursor()
     
     query = """
@@ -105,9 +107,11 @@ def get_revenue_by_period(
     date_to: date,
     group_by: str = "day",  # 'day', 'week', 'month'
     conn = Depends(get_db),
-    usuario = Depends(obtener_usuario_actual)
+    usuario = Depends(verificar_rol("admin"))
 ):
     """Reporte de ingresos por período"""
+    if date_from > date_to:
+        raise HTTPException(status_code=400, detail="date_from no puede ser posterior a date_to")
     cursor = conn.cursor()
     
     if group_by == "day":

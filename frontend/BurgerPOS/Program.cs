@@ -27,17 +27,6 @@ Console.WriteLine($"🔗 Configurando API URL: {apiUrl}");
 // HTTP CLIENTS
 // ============================================
 
-// Registrar JwtAuthorizationMessageHandler
-builder.Services.AddScoped<JwtAuthorizationMessageHandler>();
-
-// HttpClient para PosApiService (con autenticación automática)
-builder.Services.AddHttpClient<PosApiService>(client =>
-{
-    client.BaseAddress = new Uri(apiUrl);
-    client.Timeout = TimeSpan.FromSeconds(30);
-})
-.AddHttpMessageHandler<JwtAuthorizationMessageHandler>();
-
 // HttpClient para AuthenticationService (sin handler, ya que el login no necesita token)
 builder.Services.AddHttpClient<AuthenticationService>(client =>
 {
@@ -48,7 +37,34 @@ builder.Services.AddHttpClient<AuthenticationService>(client =>
 // ============================================
 // AUTENTICACIÓN
 // ============================================
-builder.Services.AddScoped<AuthStateProvider>();
+// 1. AuthStateProvider gets a plain HttpClient (it doesn't need the JWT handler itself)
+builder.Services.AddScoped(sp => 
+{
+    var localStorage = sp.GetRequiredService<Blazored.LocalStorage.ILocalStorageService>();
+    var client = new HttpClient
+    {
+        BaseAddress = new Uri(apiUrl),
+        Timeout = TimeSpan.FromSeconds(30)
+    };
+    return new AuthStateProvider(localStorage, client);
+});
+
+// 2. PosApiService gets a plain HttpClient and AuthStateProvider directly
+//    Token is attached per-request inside PosApiService using the cached in-memory token.
+//    This avoids the Blazor Server DelegatingHandler scoping issue entirely.
+builder.Services.AddScoped(sp => 
+{
+    var authStateProvider = sp.GetRequiredService<AuthStateProvider>();
+    
+    var client = new HttpClient
+    {
+        BaseAddress = new Uri(apiUrl),
+        Timeout = TimeSpan.FromSeconds(30)
+    };
+    
+    var logger = sp.GetRequiredService<ILogger<PosApiService>>();
+    return new PosApiService(client, logger, authStateProvider);
+});
 builder.Services.AddScoped<AuthenticationStateProvider>(provider => 
     provider.GetRequiredService<AuthStateProvider>());
 builder.Services.AddCascadingAuthenticationState();

@@ -130,9 +130,13 @@
     private Category? categoryToDelete = null;
     private int editingId = 0;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadData();
+        if (firstRender)
+        {
+            await LoadData();
+            StateHasChanged();
+        }
     }
 
     private async Task LoadData()

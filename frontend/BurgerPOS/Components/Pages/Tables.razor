@@ -362,9 +362,13 @@
     private bool showPinModal = false;
     private Table? selectedTableForAction;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadTables();
+        if (firstRender)
+        {
+            await LoadTables();
+            StateHasChanged();
+        }
     }
 
     private async Task LoadTables()

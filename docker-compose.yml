@@ -40,7 +40,7 @@ services:
       - ./backend/.env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-burger_pos}
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-burger_mq}:${RABBITMQ_PASS:-burger_mq_secret}@rabbitmq:5672/
 
   db:
     image: postgres:15
@@ -61,18 +61,18 @@ services:
     image: rabbitmq:3.13-management-alpine
     container_name: burger-rabbitmq
     ports:
-      - "5672:5672"      # AMQP port
-      - "15672:15672"    # Management UI
+      - "5672:5672" # AMQP port
+      - "15672:15672" # Management UI
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-burger_mq}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS:-burger_mq_secret}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     restart: unless-stopped
     networks:
       - burger-net
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      test: [ "CMD", "rabbitmq-diagnostics", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -97,7 +97,7 @@ services:
       - ./backend/.env
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-burger_pos}
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-burger_mq}:${RABBITMQ_PASS:-burger_mq_secret}@rabbitmq:5672/
 
 networks:
   burger-net:

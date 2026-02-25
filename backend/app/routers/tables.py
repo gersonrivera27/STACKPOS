@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from ..security import obtener_usuario_actual
+from ..security import obtener_usuario_actual, verificar_rol
 from typing import List, Optional
 from decimal import Decimal
 from datetime import datetime
@@ -66,7 +66,7 @@ def get_tables(conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)
     return list(unique_tables)
 
 @router.post("", response_model=Table, status_code=status.HTTP_201_CREATED)
-def create_table(table: TableCreate, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
+def create_table(table: TableCreate, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):
     """Crear una nueva mesa"""
     cursor = conn.cursor()
     try:
@@ -98,8 +98,11 @@ def update_table_status(table_id: int, is_occupied: bool, conn = Depends(get_db)
     return Table(id=updated_table['id'], table_number=updated_table['table_number'], is_occupied=updated_table['is_occupied'])
 
 @router.patch("/{table_id}/position")
-def update_table_position(table_id: int, x: int, y: int, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
-    """Actualizar la posición de una mesa"""
+def update_table_position(table_id: int, x: int, y: int, conn = Depends(get_db), usuario = Depends(verificar_rol("admin"))):
+    """Actualizar la posición de una mesa (solo admin)"""
+    # Validate coordinate range
+    if not (0 <= x <= 2000) or not (0 <= y <= 2000):
+        raise HTTPException(status_code=400, detail="Coordenadas x/y deben estar entre 0 y 2000")
     cursor = conn.cursor()
     cursor.execute(
         "UPDATE tables SET x = %s, y = %s WHERE id = %s RETURNING *",
