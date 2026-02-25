@@ -12,6 +12,9 @@ RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuse
 # Copy application code
 COPY . .
 
+# Create uploads directory (needed for StaticFiles mount)
+RUN mkdir -p uploads
+
 # Change ownership to non-root user
 RUN chown -R appuser:appuser /app
 
