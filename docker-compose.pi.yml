@@ -15,8 +15,8 @@ services:
   # ============================================
   frontend:
     build:
-      context: ./frontend
-      dockerfile: BurgerPOS/Dockerfile
+      context: ./frontend/BurgerPOS
+      dockerfile: Dockerfile
     container_name: burger-frontend
     expose:
       - "5000"
