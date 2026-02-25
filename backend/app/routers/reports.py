@@ -14,34 +14,34 @@ router = APIRouter()
 def get_daily_sales(report_date: Optional[date] = None, conn = Depends(get_db), usuario = Depends(verificar_rol("admin", "manager"))):
     """Reporte de ventas diarias. Requiere rol admin o manager."""
     cursor = conn.cursor()
-    
+
     if not report_date:
         report_date = date.today()
-    
+
     cursor.execute(
-        """SELECT 
+        """SELECT
             COUNT(CASE WHEN status <> 'cancelled' THEN 1 END) as total_orders,
             COALESCE(SUM(CASE WHEN status <> 'cancelled' THEN total ELSE 0 END), 0) as total_sales,
             COALESCE(AVG(CASE WHEN status <> 'cancelled' THEN total ELSE NULL END), 0) as average_ticket,
             COALESCE(SUM(CASE WHEN status <> 'cancelled' THEN tax ELSE 0 END), 0) as total_tax,
             COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_orders,
             COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_orders
-           FROM orders 
+           FROM orders
            WHERE DATE(created_at) = %s""",
         (report_date,)
     )
     result = cursor.fetchone()
-    
+
     # Obtener ventas por tipo de orden
     cursor.execute(
         """SELECT order_type, COUNT(*) as count, COALESCE(SUM(total), 0) as total
-           FROM orders 
+           FROM orders
            WHERE DATE(created_at) = %s AND status <> 'cancelled'
            GROUP BY order_type""",
         (report_date,)
     )
     by_type = cursor.fetchall()
-    
+
     return {
         "date": report_date,
         "summary": dict(result),
@@ -56,13 +56,13 @@ def get_top_products(
     conn = Depends(get_db),
     usuario = Depends(verificar_rol("admin", "manager"))
 ):
-    """Reporte de productos más vendidos. Requiere rol admin o manager."""
+    """Reporte de productos mas vendidos. Requiere rol admin o manager."""
     if date_from and date_to and date_from > date_to:
         raise HTTPException(status_code=400, detail="date_from no puede ser posterior a date_to")
     cursor = conn.cursor()
-    
+
     query = """
-        SELECT 
+        SELECT
             p.id,
             p.name,
             c.name as category,
@@ -76,25 +76,25 @@ def get_top_products(
         WHERE o.status <> 'cancelled'
     """
     params = []
-    
+
     if date_from:
         query += " AND DATE(o.created_at) >= %s"
         params.append(date_from)
-    
+
     if date_to:
         query += " AND DATE(o.created_at) <= %s"
         params.append(date_to)
-    
+
     query += """
         GROUP BY p.id, p.name, c.name
         ORDER BY total_quantity DESC
         LIMIT %s
     """
     params.append(limit)
-    
+
     cursor.execute(query, params)
     products = cursor.fetchall()
-    
+
     return {
         "date_from": date_from,
         "date_to": date_to,
@@ -109,7 +109,7 @@ def get_revenue_by_period(
     conn = Depends(get_db),
     usuario = Depends(verificar_rol("admin", "manager"))
 ):
-    """Reporte de ingresos por período. Requiere rol admin o manager."""
+    """Reporte de ingresos por periodo. Requiere rol admin o manager."""
     if date_from > date_to:
         raise HTTPException(status_code=400, detail="date_from no puede ser posterior a date_to")
 
@@ -141,7 +141,7 @@ def get_revenue_by_period(
 
     cursor.execute(query, (date_from, date_to))
     results = cursor.fetchall()
-    
+
     return {
         "date_from": date_from,
         "date_to": date_to,

@@ -1,127 +1,202 @@
-# 🚀 Guía de Despliegue - BurgerPOS
+# 🚀 Despliegue — BurgerPOS en Raspberry Pi 5
 
-## Arquitectura de Producción
+## Arquitectura
 
 ```
-Internet → Cloudflare → Servidor Madrid (Docker)
-                              ├── nginx (puerto 80/443)
-                              ├── frontend (Blazor)
-                              ├── backend (FastAPI)
-                              └── postgres (base de datos)
+Internet → Cloudflare (SSL) → Tunnel → Pi 5 (Docker)
+                                         ├── nginx (:8088 → Tunnel)
+                                         ├── frontend (Blazor :5000)
+                                         ├── backend (FastAPI :8000)
+                                         ├── postgres (:5432)
+                                         ├── rabbitmq (:5672)
+                                         ├── audit-consumer (worker)
+                                         └── backup (pg_dump diario)
+```
+
+**Dominio:** `pos.gerson-sec.com` via Cloudflare Tunnel  
+**No se abren puertos** — el Tunnel conecta de forma saliente.
+
+---
+
+## Paso 1: Clonar en la Pi
+
+```bash
+ssh pi@192.168.1.24
+
+# Clonar repositorio
+git clone https://github.com/gersonrivera27/Restaurant_pos.git ~/burger-pos
+cd ~/burger-pos
 ```
 
 ---
 
-## Paso 1: Preparar el Servidor
+## Paso 2: Configurar Variables de Entorno
 
-### En el servidor de Madrid, ejecutar:
-
+### Crear `backend/.env`:
 ```bash
-# Clonar el repositorio
-git clone https://github.com/gersonrivera27/Restaurant_pos.git
-cd Restaurant_pos
-
-# Crear archivos de entorno
 cp backend/.env.example backend/.env
-cp .env.db.example .env.db
-cp docker-compose.prod.example.yml docker-compose.prod.yml
-```
-
-### Editar `backend/.env`:
-
-```bash
 nano backend/.env
 ```
 
-Cambiar a:
+Configurar:
 ```env
 ENV=production
-DATABASE_URL=postgresql://postgres:TU_PASSWORD_SEGURO@db:5432/burger_pos
-ALLOWED_ORIGINS=https://tudominio.com
-SECRET_KEY=genera_con_openssl_rand_hex_32
-JWT_SECRET_KEY=genera_otro_con_openssl_rand_hex_32
+DATABASE_URL=postgresql://postgres:TU_PASSWORD@db:5432/burger_pos
+SECRET_KEY=<genera con: openssl rand -hex 32>
+JWT_SECRET_KEY=<genera con: openssl rand -hex 32>
+ALLOWED_ORIGINS=https://pos.gerson-sec.com
+RABBITMQ_URL=amqp://burger_mq:TU_MQ_PASS@rabbitmq:5672/
+RABBITMQ_ENABLED=true
+GOOGLE_MAPS_API_KEY=tu_api_key
 ```
 
-### Editar `.env.db`:
-
+### Crear `.env.db`:
 ```bash
+cp .env.db.example .env.db
 nano .env.db
 ```
 
 ```env
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=TU_PASSWORD_SEGURO
+POSTGRES_PASSWORD=TU_PASSWORD
 POSTGRES_DB=burger_pos
+```
+
+### Crear `.env` raíz para credenciales compartidas:
+```bash
+cat > .env << 'EOF'
+RABBITMQ_USER=burger_mq
+RABBITMQ_PASS=TU_MQ_PASS
+POSTGRES_PASSWORD=TU_PASSWORD
+EOF
 ```
 
 ---
 
-## Paso 2: Configurar Cloudflare
-
-### En el panel de Cloudflare:
-
-1. **DNS**: Añadir registro A
-   - Name: `@` o `burgerpos`
-   - Content: IP pública del servidor en Madrid
-   - Proxy: ✅ Proxied (naranja)
-
-2. **SSL/TLS**: Modo "Full" o "Full (strict)"
-
-3. **Page Rules** (opcional):
-   - Always Use HTTPS
-
----
-
-## Paso 3: Configurar nginx para Cloudflare
-
-Ya creamos `nginx/nginx.conf` con la configuración necesaria.
-
-Para SSL con Cloudflare, el servidor solo necesita HTTP (puerto 80) porque Cloudflare maneja el SSL.
-
----
-
-## Paso 4: Iniciar en Producción
+## Paso 3: Levantar BurgerPOS
 
 ```bash
-# Construir y levantar
-docker-compose -f docker-compose.prod.yml up -d
+cd ~/burger-pos
+
+# Construir y levantar (primera vez tarda ~5-10 min en la Pi)
+docker compose -f docker-compose.pi.yml up -d --build
+
+# Verificar que todo está corriendo
+docker compose -f docker-compose.pi.yml ps
 
 # Ver logs
-docker-compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.pi.yml logs -f
+```
 
-# Verificar estado
-docker-compose -f docker-compose.prod.yml ps
+Verificar acceso local:
+```bash
+curl http://localhost:8088/health
+# → {"status":"healthy"}
+```
+
+---
+
+## Paso 4: Configurar Cloudflare Tunnel
+
+Ya tienes `cloudflared-connector` corriendo. Solo necesitas añadir una ruta nueva.
+
+### Opción A: Desde el Dashboard de Cloudflare (más fácil)
+
+1. Ir a **Cloudflare Dashboard** → **Zero Trust** → **Networks** → **Tunnels**
+2. Seleccionar tu tunnel existente → **Configure**
+3. Ir a **Public Hostname** → **Add a public hostname**
+4. Configurar:
+
+| Campo | Valor |
+|-------|-------|
+| Subdomain | `pos` |
+| Domain | `gerson-sec.com` |
+| Type | `HTTP` |
+| URL | `192.168.1.24:8088` |
+
+5. En **Additional application settings** → **HTTP Settings**:
+   - ✅ **HTTP Host Header**: `pos.gerson-sec.com`
+   - ✅ **No TLS Verify**: ON (nginx es HTTP interno)
+
+6. **Save hostname**
+
+### Opción B: Via config YAML (si usas archivo de config)
+
+Añadir al archivo de configuración de cloudflared:
+```yaml
+ingress:
+  # BurgerPOS
+  - hostname: pos.gerson-sec.com
+    service: http://192.168.1.24:8088
+  # ... tus otras rutas existentes
+  - service: http_status:404
 ```
 
 ---
 
 ## Paso 5: Verificar
 
-1. Acceder a `https://tudominio.com`
-2. Login con el usuario `admin` y la contraseña que generaste en el paso de creación del admin
-3. Cambiar la contraseña del admin desde el panel de administración
+1. Esperar ~1 minuto para que Cloudflare propague el DNS
+2. Acceder a **https://pos.gerson-sec.com**
+3. Login: `admin` / `admin123`
+4. **⚠️ Cambiar la contraseña del admin inmediatamente**
+
+---
+
+## Backups
+
+```bash
+# Ver backups existentes
+docker exec burger-backup ls -lh /backups/
+
+# Backup manual
+docker exec burger-backup /backup.sh
+
+# Restaurar un backup
+gunzip -c backup.sql.gz | docker exec -i burger-db psql -U postgres -d burger_pos
+```
 
 ---
 
 ## Comandos Útiles
 
 ```bash
-# Reiniciar servicios
-docker-compose -f docker-compose.prod.yml restart
+# Alias recomendado (añadir a ~/.bashrc)
+alias burger='docker compose -f ~/burger-pos/docker-compose.pi.yml'
 
-# Ver logs de un servicio
-docker-compose -f docker-compose.prod.yml logs backend
+# Entonces puedes usar:
+burger ps          # Estado
+burger logs -f     # Logs
+burger restart     # Reiniciar
+burger down        # Parar
 
 # Actualizar desde GitHub
+cd ~/burger-pos
 git pull
-docker-compose -f docker-compose.prod.yml up -d --build
+burger up -d --build
 ```
 
 ---
 
-## Actualizar Google Maps API Key
+## Monitoreo
 
-En Google Cloud Console, añadir tu dominio de producción:
-```
-https://tudominio.com/*
-```
+Ya tienes **Dozzle** corriendo en la Pi para ver logs de containers.  
+BurgerPOS aparecerá automáticamente en Dozzle (burger-frontend, burger-backend, etc.)
+
+**Health check:** `https://pos.gerson-sec.com/health`
+
+---
+
+## Recursos de la Pi
+
+| Servicio | RAM (aprox.) |
+|----------|-------------|
+| Frontend (Blazor) | ~150 MB |
+| Backend (FastAPI) | ~100 MB |
+| PostgreSQL | ~50 MB |
+| RabbitMQ | ~100 MB |
+| Nginx | ~5 MB |
+| Audit Consumer | ~50 MB |
+| **Total BurgerPOS** | **~450 MB** |
+| + Containers existentes | ~300 MB |
+| **Total Pi** | **~750 MB / 8 GB** |

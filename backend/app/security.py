@@ -15,7 +15,7 @@ from .database import get_db
 
 # CONFIGURACIÓN
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 # ============================================
 # FUNCIONES DE PASSWORD
@@ -151,6 +151,13 @@ async def obtener_usuario_actual(
     Raises:
         HTTPException: Si el token es inválido o el usuario no existe
     """
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Falta token de autenticación",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
     # Extraer token del header Bearer
     token_str = token.credentials if hasattr(token, 'credentials') else token
     

@@ -47,8 +47,7 @@ class Settings(BaseSettings):
     # Refresh token: días (default 7 días). Configurable via REFRESH_TOKEN_EXPIRE_DAYS
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
-    # RabbitMQ Configuration — debe definirse via variable de entorno RABBITMQ_URL.
-    # No se provee valor por defecto para evitar credenciales hardcodeadas.
+    # RabbitMQ Configuration — no default credentials
     RABBITMQ_URL: str = os.getenv("RABBITMQ_URL", "")
     RABBITMQ_ENABLED: bool = os.getenv("RABBITMQ_ENABLED", "true").lower() == "true"
 

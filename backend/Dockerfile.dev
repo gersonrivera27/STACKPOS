@@ -6,8 +6,20 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
 # Copy application code
 COPY . .
+
+# Create uploads directory (needed for StaticFiles mount)
+RUN mkdir -p uploads
+
+# Change ownership to non-root user
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 8000

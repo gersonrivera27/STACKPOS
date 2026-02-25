@@ -282,13 +282,17 @@
     private bool isAdmin = false;
     private bool showHistory = false;
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-        isAdmin = user.Identity?.IsAuthenticated == true && user.IsInRole("admin");
-        
-        await LoadOrders();
+        if (firstRender)
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            isAdmin = user.Identity?.IsAuthenticated == true && user.IsInRole("admin");
+            
+            await LoadOrders();
+            StateHasChanged();
+        }
     }
 
     private async Task LoadOrders()

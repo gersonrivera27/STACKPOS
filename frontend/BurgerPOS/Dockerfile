@@ -7,12 +7,16 @@ RUN dotnet publish -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
+
+# Create non-root user
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
 COPY --from=build /app/publish .
 
-# Crear usuario no-root para ejecutar la app
-RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
-RUN chown -R appuser:appgroup /app
+# Change ownership to non-root user
+RUN chown -R appuser:appuser /app
 
+# Switch to non-root user
 USER appuser
 
 ENV ASPNETCORE_URLS=http://+:5000

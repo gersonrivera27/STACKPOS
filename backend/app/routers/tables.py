@@ -12,27 +12,27 @@ router = APIRouter()
 
 @router.get("", response_model=List[Table])
 def get_tables(conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
-    """Obtener todas las mesas con información de ocupación"""
+    """Obtener todas las mesas con informacion de ocupacion"""
     cursor = conn.cursor()
-    
+
     # Query join tables with their ACTIVE order (not completed/cancelled)
-    # Seleccionamos la orden más reciente que esté activa para esa mesa
+    # Seleccionamos la orden mas reciente que este activa para esa mesa
     query = """
-        SELECT 
+        SELECT
             t.id, t.table_number, t.is_occupied, t.x, t.y,
             o.id as order_id, o.customer_name, o.total, o.created_at as order_created_at
         FROM tables t
-        LEFT JOIN orders o ON o.table_id = t.id 
+        LEFT JOIN orders o ON o.table_id = t.id
              AND o.status NOT IN ('completed', 'cancelled')
         ORDER BY t.table_number
     """
     cursor.execute(query)
     rows = cursor.fetchall()
-    
+
     tables_result = []
     for row in rows:
         # Check if we have an active order for this table
-        
+
         active_order = None
         if row['order_id']:
             # Calculate elapsed time string
@@ -58,11 +58,11 @@ def get_tables(conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)
             y=row['y'] or 0,
             active_order=active_order
         ))
-    
+
     # Remove duplicates if any (due to join) - simplified approach
     # Ideally use DISTINCT ON or group by
     unique_tables = {t.id: t for t in tables_result}.values()
-    
+
     return list(unique_tables)
 
 @router.post("", response_model=Table, status_code=status.HTTP_201_CREATED)
@@ -79,7 +79,7 @@ def create_table(table: TableCreate, conn = Depends(get_db), usuario = Depends(v
         return Table(id=new_row['id'], table_number=new_row['table_number'], is_occupied=new_row['is_occupied'])
     except psycopg2.IntegrityError:
         conn.rollback()
-        raise HTTPException(status_code=400, detail="El número de mesa ya existe")
+        raise HTTPException(status_code=400, detail="El numero de mesa ya existe")
 
 @router.patch("/{table_id}/status")
 def update_table_status(table_id: int, is_occupied: bool, conn = Depends(get_db), usuario = Depends(obtener_usuario_actual)):
@@ -90,14 +90,14 @@ def update_table_status(table_id: int, is_occupied: bool, conn = Depends(get_db)
         (is_occupied, table_id)
     )
     updated_table = cursor.fetchone()
-    
+
     if not updated_table:
         raise HTTPException(status_code=404, detail="Mesa no encontrada")
-    
+
     conn.commit()
     return Table(id=updated_table['id'], table_number=updated_table['table_number'], is_occupied=updated_table['is_occupied'])
 
-MAX_TABLE_COORD = 5000  # Límite razonable para el canvas del plano de mesas
+MAX_TABLE_COORD = 5000  # Limite razonable para el canvas del plano de mesas
 
 @router.patch("/{table_id}/position")
 def update_table_position(
@@ -107,21 +107,21 @@ def update_table_position(
     conn = Depends(get_db),
     usuario = Depends(verificar_rol("admin"))
 ):
-    """Actualizar la posición de una mesa en el plano. Requiere rol admin."""
+    """Actualizar la posicion de una mesa en el plano. Requiere rol admin."""
     cursor = conn.cursor()
     cursor.execute(
         "UPDATE tables SET x = %s, y = %s WHERE id = %s RETURNING *",
         (x, y, table_id)
     )
     updated_table = cursor.fetchone()
-    
+
     if not updated_table:
         raise HTTPException(status_code=404, detail="Mesa no encontrada")
-    
+
     conn.commit()
     return Table(
-        id=updated_table['id'], 
-        table_number=updated_table['table_number'], 
+        id=updated_table['id'],
+        table_number=updated_table['table_number'],
         is_occupied=updated_table['is_occupied'],
         x=updated_table['x'],
         y=updated_table['y']

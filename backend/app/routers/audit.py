@@ -13,7 +13,7 @@ router = APIRouter(tags=["Audit"])
 @router.get("/logs")
 def list_audit_logs(
     event: Optional[str] = Query(None, description="Filter by event type"),
-    username: Optional[str] = Query(None, description="Filter by username"),
+    username: Optional[str] = Query(None, description="Filter by username", max_length=100),
     limit: int = Query(50, ge=1, le=500),
     conn=Depends(get_db),
     usuario=Depends(verificar_rol("admin")),

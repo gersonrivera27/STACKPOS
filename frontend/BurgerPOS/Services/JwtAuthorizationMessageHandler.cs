@@ -10,13 +10,11 @@ namespace BurgerPOS.Services;
 /// </summary>
 public class JwtAuthorizationMessageHandler : DelegatingHandler
 {
-    private readonly ILocalStorageService _localStorage;
-    private const string TOKEN_KEY = "authToken";
-    private const string REFRESH_TOKEN_KEY = "refreshToken";
+    private readonly AuthStateProvider _authStateProvider;
 
-    public JwtAuthorizationMessageHandler(ILocalStorageService localStorage)
+    public JwtAuthorizationMessageHandler(AuthStateProvider authStateProvider)
     {
-        _localStorage = localStorage;
+        _authStateProvider = authStateProvider;
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(
@@ -25,8 +23,8 @@ public class JwtAuthorizationMessageHandler : DelegatingHandler
     {
         try
         {
-            // Obtener token del LocalStorage
-            var token = await _localStorage.GetItemAsync<string>(TOKEN_KEY);
+            // Obtener token del AuthStateProvider (maneja reintentos seguros)
+            var token = await _authStateProvider.GetToken();
             
             if (!string.IsNullOrWhiteSpace(token))
             {
@@ -48,7 +46,7 @@ public class JwtAuthorizationMessageHandler : DelegatingHandler
             // Intentar refrescar el token
             try
             {
-                var refreshToken = await _localStorage.GetItemAsync<string>(REFRESH_TOKEN_KEY);
+                var refreshToken = await _authStateProvider.GetRefreshToken();
                 if (!string.IsNullOrWhiteSpace(refreshToken))
                 {
                     // Crear un nuevo HttpClient para la petición de refresh, sin la autorización
@@ -65,12 +63,8 @@ public class JwtAuthorizationMessageHandler : DelegatingHandler
                         var result = await refreshResp.Content.ReadFromJsonAsync<LoginResponse>(cancellationToken: cancellationToken);
                         if (result?.Exito == true && !string.IsNullOrWhiteSpace(result.Token))
                         {
-                            // Actualizar tokens en LocalStorage
-                            await _localStorage.SetItemAsync(TOKEN_KEY, result.Token);
-                            if (!string.IsNullOrWhiteSpace(result.RefreshToken))
-                            {
-                                await _localStorage.SetItemAsync(REFRESH_TOKEN_KEY, result.RefreshToken);
-                            }
+                            // Actualizar tokens
+                            await _authStateProvider.MarkUserAsAuthenticated(result.Token, result.RefreshToken ?? "");
 
                             // Clonar e intentar la request original de nuevo
                             var clonedReq = await CloneRequest(request);
@@ -85,9 +79,8 @@ public class JwtAuthorizationMessageHandler : DelegatingHandler
                     }
                     else
                     {
-                        // Refresh token falló, cerrar sesión limpiando LocalStorage
-                        await _localStorage.RemoveItemAsync(TOKEN_KEY);
-                        await _localStorage.RemoveItemAsync(REFRESH_TOKEN_KEY);
+                        // Refresh token falló, cerrar sesión
+                        await _authStateProvider.MarkUserAsLoggedOut();
                     }
                 }
             }

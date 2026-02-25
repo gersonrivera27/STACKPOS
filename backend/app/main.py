@@ -82,6 +82,8 @@ else:
     logger.warning("⚠️ Audit Middleware deshabilitado (RABBITMQ_ENABLED=false)")
 
 # Montar estáticos
+import os
+os.makedirs("uploads", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Registrar routers

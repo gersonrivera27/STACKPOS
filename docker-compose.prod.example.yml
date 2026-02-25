@@ -1,58 +1,149 @@
-version: '3.8'
-
-# PRODUCTION Docker Compose
-# Copy to docker-compose.prod.yml and configure before deployment
-
 services:
+  # ============================================
+  # Frontend - Blazor Server
+  # ============================================
   frontend:
     build:
-      context: ./frontend/BurgerPOS
-      dockerfile: Dockerfile
+      context: ./frontend
+      dockerfile: BurgerPOS/Dockerfile
     container_name: burger-frontend
     expose:
       - "5000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: always
     networks:
       - burger-net
-
-  backend:
-    image: python:3.11-slim
-    container_name: burger-backend
-    working_dir: /app
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5000
+      - API_URL=http://burger-backend:8000
     volumes:
-      - ./backend:/app
-    command: sh -c "pip install -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4"
+      - data-protection-keys:/home/appuser/.aspnet/DataProtection-Keys
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # Backend - FastAPI
+  # ============================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: burger-backend
     expose:
       - "8000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     restart: always
     networks:
       - burger-net
     env_file:
       - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-burger_pos}
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-burger_mq}:${RABBITMQ_PASS}@rabbitmq:5672/
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
 
+  # ============================================
+  # Database - PostgreSQL
+  # ============================================
   db:
     image: postgres:15
     container_name: burger-db
     env_file:
       - ./.env.db
+    # No ports exposed — only accessible via Docker network
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backend/audit_logs.sql:/docker-entrypoint-initdb.d/02_audit_logs.sql
     restart: always
     networks:
       - burger-net
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ============================================
+  # RabbitMQ - Message Broker
+  # ============================================
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: burger-rabbitmq
+    # Management UI only on localhost for admin access
+    ports:
+      - "127.0.0.1:15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-burger_mq}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: always
+    networks:
+      - burger-net
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Audit Consumer - Background Worker
+  # ============================================
+  audit-consumer:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: burger-audit-consumer
+    command: python -m app.consumers.audit_consumer
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: always
+    networks:
+      - burger-net
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-burger_pos}
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-burger_mq}:${RABBITMQ_PASS}@rabbitmq:5672/
+
+  # ============================================
+  # Nginx - Reverse Proxy
+  # ============================================
   nginx:
     image: nginx:alpine
     container_name: burger-nginx
     ports:
       - "80:80"
+      - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ssl-certs:/etc/nginx/ssl:ro
     depends_on:
       - frontend
       - backend
@@ -60,9 +151,40 @@ services:
     networks:
       - burger-net
 
+  # ============================================
+  # Database Backup - Daily pg_dump
+  # ============================================
+  backup:
+    image: postgres:15
+    container_name: burger-backup
+    volumes:
+      - ./scripts/backup.sh:/backup.sh:ro
+      - db-backups:/backups
+    entrypoint: [ "/bin/bash", "-c", "chmod +x /backup.sh && while true; do /backup.sh; sleep 86400; done" ]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+    networks:
+      - burger-net
+    env_file:
+      - ./.env.db
+    environment:
+      - DB_HOST=db
+      - RETENTION_DAYS=7
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
 networks:
   burger-net:
     driver: bridge
 
 volumes:
   postgres_data:
+  data-protection-keys:
+  rabbitmq_data:
+  db-backups:
+  ssl-certs:
