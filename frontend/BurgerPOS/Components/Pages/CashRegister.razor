@@ -161,7 +161,7 @@
                                 <div class="difference-box">
                                     <div class="diff-row">
                                         <span>Esperado (Inicio + Ventas Eff):</span>
-                                        <strong>€@((activeSession.ExpectedAmount ?? 0).ToString("F2"))</strong>
+                                        <strong>€@GetExpectedCash().ToString("F2")</strong>
                                     </div>
                                      <div class="diff-row">
                                         <span>Contado:</span>
@@ -347,10 +347,19 @@
         }
     }
 
+    private decimal GetExpectedCash()
+    {
+        if (activeSession == null) return 0;
+        // If session is closed, use the stored expected_amount
+        // If session is open, calculate in real-time: opening + cash sales + tips
+        return activeSession.ExpectedAmount
+            ?? (activeSession.OpeningAmount + activeSession.TotalCashSales + activeSession.TotalTips);
+    }
+
     private decimal CalculateDifference()
     {
         if (activeSession == null) return 0;
-        return closingAmount - (activeSession.ExpectedAmount ?? 0);
+        return closingAmount - GetExpectedCash();
     }
 
     private void GoHome()
