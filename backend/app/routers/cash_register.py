@@ -300,17 +300,35 @@ def create_payment(payment_data: PaymentCreate, conn = Depends(get_db), usuario 
         ))
         
         new_payment = cursor.fetchone()
-        
+
         # Marcar método de pago pero NO cambiar el estado de preparación/cocina.
         # Esto mantiene la orden visible en cocina aunque ya esté pagada.
         cursor.execute("""
-            UPDATE orders 
+            UPDATE orders
             SET payment_method = %s
             WHERE id = %s
         """, (payment_data.payment_type.value, payment_data.order_id))
-        
+
+        # ── Actualizar totales de la sesión de caja activa ──────────────
+        if session_id:
+            cursor.execute("""
+                UPDATE cash_sessions SET
+                    total_cash_sales  = total_cash_sales  + %s,
+                    total_card_sales  = total_card_sales  + %s,
+                    total_sales       = total_sales       + %s,
+                    total_tips        = total_tips        + %s,
+                    orders_count      = orders_count      + 1
+                WHERE id = %s
+            """, (
+                payment_data.cash_amount,
+                payment_data.card_amount,
+                order_total,
+                payment_data.tip_amount,
+                session_id
+            ))
+
         conn.commit()
-        
+
         return new_payment
     
     except HTTPException:
