@@ -310,7 +310,22 @@ def create_payment(payment_data: PaymentCreate, conn = Depends(get_db), usuario 
         """, (payment_data.payment_type.value, payment_data.order_id))
 
         # ── Actualizar totales de la sesión de caja activa ──────────────
+        # cash_sales = real sale value paid in cash (NOT the amount handed by customer)
+        # For pure cash: cash_sales = order_total (customer paid €70, but sale is €60)
+        # For mixed: cash_sales = min(cash_amount, order_total - card_amount)
+        # For card: cash_sales = 0
         if session_id:
+            ptype = payment_data.payment_type.value
+            if ptype == "cash":
+                real_cash_sales = order_total
+                real_card_sales = Decimal("0.00")
+            elif ptype == "card":
+                real_cash_sales = Decimal("0.00")
+                real_card_sales = order_total
+            else:  # mixed
+                real_card_sales = payment_data.card_amount
+                real_cash_sales = order_total - real_card_sales
+
             cursor.execute("""
                 UPDATE cash_sessions SET
                     total_cash_sales  = total_cash_sales  + %s,
@@ -320,8 +335,8 @@ def create_payment(payment_data: PaymentCreate, conn = Depends(get_db), usuario 
                     orders_count      = orders_count      + 1
                 WHERE id = %s
             """, (
-                payment_data.cash_amount,
-                payment_data.card_amount,
+                real_cash_sales,
+                real_card_sales,
                 order_total,
                 payment_data.tip_amount,
                 session_id
