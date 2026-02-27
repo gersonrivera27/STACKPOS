@@ -21,7 +21,7 @@ Internet → Cloudflare (SSL) → Tunnel → Pi 5 (Docker)
 ## Paso 1: Clonar en la Pi
 
 ```bash
-ssh pi@192.168.1.24
+ssh pi@<PI_LOCAL_IP>
 
 # Clonar repositorio
 git clone https://github.com/gersonrivera27/Restaurant_pos.git ~/burger-pos
@@ -112,7 +112,7 @@ Ya tienes `cloudflared-connector` corriendo. Solo necesitas añadir una ruta nue
 | Subdomain | `pos` |
 | Domain | `gerson-sec.com` |
 | Type | `HTTP` |
-| URL | `192.168.1.24:8088` |
+| URL | `<PI_LOCAL_IP>:8088` |
 
 5. En **Additional application settings** → **HTTP Settings**:
    - ✅ **HTTP Host Header**: `pos.gerson-sec.com`
@@ -127,7 +127,7 @@ Añadir al archivo de configuración de cloudflared:
 ingress:
   # BurgerPOS
   - hostname: pos.gerson-sec.com
-    service: http://192.168.1.24:8088
+    service: http://<PI_LOCAL_IP>:8088
   # ... tus otras rutas existentes
   - service: http_status:404
 ```
